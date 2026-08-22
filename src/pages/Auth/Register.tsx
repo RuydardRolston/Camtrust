@@ -116,7 +116,7 @@ export const Register: React.FC = () => {
 
   return (
     <AuthLayout>
-      <div className="bg-white p-7 sm:p-9 rounded-[24px] border border-gray-100 shadow-[0_4px_25px_rgba(0,0,0,0.05)] transition-all">
+      <div className="bg-white p-7 sm:p-9 rounded-3xl border border-gray-100 shadow-[0_4px_25px_rgba(0,0,0,0.05)] transition-all">
         {/* Card Header */}
         <div className="text-center mb-6">
           <h2 className="text-2xl sm:text-[26px] font-bold text-gray-900 tracking-tight">
@@ -131,7 +131,7 @@ export const Register: React.FC = () => {
 
         {successMessage && (
           <div className="p-3 mb-4 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold flex items-center gap-2 animate-fadeIn">
-            <svg className="w-4 h-4 text-emerald-600 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+            <svg className="w-4 h-4 text-emerald-600 shrink-0" fill="currentColor" viewBox="0 0 20 20">
               <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
             </svg>
             <span>{successMessage}</span>
