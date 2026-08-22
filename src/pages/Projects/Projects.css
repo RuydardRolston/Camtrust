@@ -1,0 +1,17 @@
+/* Minimal styles to integrate with existing workspace theme */
+.projects-page, .project-detail-page { max-width: 1100px; margin: 28px auto; padding: 0 20px; }
+.projects-header { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
+.projects-header h1 { margin: 0; font-size: 28px; }
+.muted { color: #8a9896; font-size: 13px; }
+.projects-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; }
+.project-card { background: #fff; border: 1px solid #e6ece9; padding: 14px; border-radius: 8px; display: flex; flex-direction: column; justify-content: space-between; }
+.project-card-main { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.project-progress { font-weight: 700; color: #c76e2b; }
+.project-actions { margin-top: 12px; display: flex; gap: 10px; }
+.btn-link { color: #c76e2b; font-weight: 700; text-decoration: none; }
+.project-detail-main { display: grid; grid-template-columns: 1fr 360px; gap: 16px; }
+.panel { background: #fff; border: 1px solid #e6ece9; padding: 16px; border-radius: 8px; }
+
+@media (max-width: 800px) {
+  .project-detail-main { grid-template-columns: 1fr; }
+}

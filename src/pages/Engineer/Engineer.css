@@ -1,0 +1,9 @@
+.engineer-root { display: flex; }
+.engineer-main { margin-left: 260px; padding: 28px; flex: 1; background: #f3f6f4; min-height: 100vh; }
+.engineer-header { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
+.engineer-header h1 { margin: 0; font-size: 28px; }
+.engineer-grid { display: grid; grid-template-columns: 1fr 360px; gap: 16px; }
+.panel { background: #fff; border: 1px solid #e6ece9; padding: 16px; border-radius: 8px; }
+.muted { color: #8a9896; }
+
+@media (max-width: 900px) { .engineer-grid { grid-template-columns: 1fr; } }

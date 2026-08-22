@@ -1,0 +1,13 @@
+.dt-sidebar { position: fixed; left: 0; top: 0; bottom: 0; width: 240px; background: #243033; color: #dce6e3; padding: 28px 16px; display: flex; flex-direction: column; gap: 14px; z-index: 40; }
+.dt-brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-family: 'Space Grotesk', sans-serif; color: #fff; margin-bottom: 6px; }
+.dt-mark { width: 32px; height: 32px; display: grid; place-items: center; background: #c76e2b; color: #fff; border-radius: 8px; }
+.dt-title { font-size: 18px; }
+.dt-role { color: #9fb0aa; font-size: 12px; font-weight: 700; margin-top: 6px; }
+.dt-nav { display: flex; flex-direction: column; gap: 6px; margin-top: 12px; }
+.dt-nav-item { background: transparent; border: 0; color: #aebdbc; padding: 10px 12px; text-align: left; border-radius: 7px; cursor: pointer; font-weight: 600; }
+.dt-nav-item:hover { background: #304044; color: #fff; }
+.dt-footer { margin-top: auto; padding-top: 12px; border-top: 1px solid #3a4a4c; display: flex; flex-direction: column; gap: 8px; }
+.dt-user { font-weight: 700; }
+.dt-logout { display: inline-flex; gap: 8px; align-items: center; background: #fff; color: #243033; padding: 8px 10px; border-radius: 8px; border: 0; cursor: pointer; font-weight: 700; }
+
+@media (max-width: 900px) { .dt-sidebar { position: relative; width: 100%; height: auto; flex-direction: row; align-items: center; padding: 12px; } .dt-nav { flex-direction: row; gap: 8px; margin-left: 12px; } .dt-footer { display: none; } }

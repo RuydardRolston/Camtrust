@@ -1,0 +1,12 @@
+.admin-root { display: flex; }
+.admin-main { margin-left: 260px; padding: 28px; flex: 1; background: #f3f6f4; min-height: 100vh; }
+.admin-header { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
+.admin-header h1 { margin: 0; font-size: 28px; }
+.admin-grid { display: grid; grid-template-columns: 1fr 360px; gap: 16px; }
+.admin-stats { display: flex; gap: 12px; margin-top: 12px; }
+.admin-stats div { background: #fff; border: 1px solid #e6ece9; padding: 12px; border-radius: 8px; text-align: center; flex: 1; }
+.panel { background: #fff; border: 1px solid #e6ece9; padding: 16px; border-radius: 8px; }
+.btn-link { color: #c76e2b; font-weight: 700; text-decoration: none; }
+.muted { color: #8a9896; }
+
+@media (max-width: 900px) { .admin-grid { grid-template-columns: 1fr; } }

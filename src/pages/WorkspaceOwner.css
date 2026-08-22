@@ -1,0 +1,7 @@
+/* Owner-specific sidebar and small panel styles */
+.sidebar-info { margin-top: 18px; padding-top: 12px; border-top: 1px solid #304044; }
+.sidebar-section { padding: 10px 12px; color: #dce6e3; }
+.role-list, .feature-list { margin: 8px 0 0; padding: 0; list-style: none; font-size: 12px; color: #b9d0c9; }
+.role-list li, .feature-list li { margin-bottom: 8px; }
+.role-list li strong { display: block; color: #fff; font-size: 12px; }
+.feature-list li { color: #d1e6dd; }

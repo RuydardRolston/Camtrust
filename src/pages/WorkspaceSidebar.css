@@ -1,0 +1,2 @@
+.workspace-main.with-sidebar { margin-left: 260px; }
+@media (max-width: 900px) { .workspace-main.with-sidebar { margin-left: 0; } }
