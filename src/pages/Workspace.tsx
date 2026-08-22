@@ -28,9 +28,12 @@ import {
   Users,
 } from 'lucide-react';
 import './Workspace.css';
+<<<<<<< HEAD
 import './WorkspaceOwner.css';
 import './WorkspaceSidebar.css';
 import DashboardSidebar from '../components/DashboardSidebar';
+=======
+>>>>>>> 5714c36df0577f4836d13dd605ee11fb95f89c90
 import useAuth from '../hooks/useAuth';
 
 type View = 'overview' | 'reports' | 'milestones' | 'documents';
@@ -128,6 +131,7 @@ export default function Workspace() {
 
   return (
     <div className="workspace-shell">
+<<<<<<< HEAD
       {role === 'property_owner' ? (
         <DashboardSidebar role="property_owner" title="CamTrust" />
       ) : (
@@ -150,6 +154,26 @@ export default function Workspace() {
       )}
 
       <main className={`workspace-main ${role === 'property_owner' ? 'with-sidebar' : ''}`}>
+=======
+      <aside className="workspace-sidebar">
+        <div className="brand-lockup"><span className="brand-mark"><HardHat size={19} /></span><span>camtrust<span className="brand-dot">.</span></span></div>
+        <div className="sidebar-label">{profile.label}</div>
+        <nav className="sidebar-nav" aria-label="Workspace navigation">
+          {navItems.map(({ label, view: itemView, icon: Icon }) => (
+            <button key={itemView} className={view === itemView ? 'sidebar-link is-active' : 'sidebar-link'} onClick={() => setView(itemView)}><Icon size={17} /><span>{label}</span>{itemView === 'reports' && <span className="nav-count">3</span>}</button>
+          ))}
+        </nav>
+        <div className="sidebar-label sidebar-label-spaced">Workspace</div>
+        <nav className="sidebar-nav">
+          <button className="sidebar-link" onClick={() => sendMessage('Show my project team')}><Users size={17} /><span>Project team</span></button>
+          <button className="sidebar-link" onClick={() => sendMessage('Help me with a document')}><Cloud size={17} /><span>Shared files</span></button>
+          <button className="sidebar-link" onClick={() => sendMessage('Open settings')}><Settings size={17} /><span>Settings</span></button>
+        </nav>
+        <div className="sidebar-footer"><div className="sidebar-status"><span className="status-pulse" />All systems operational</div><div className="user-chip"><span className="avatar">JD</span><span><strong>John Doe</strong><small>Project owner</small></span><MoreHorizontal size={16} /></div></div>
+      </aside>
+
+      <main className="workspace-main">
+>>>>>>> 5714c36df0577f4836d13dd605ee11fb95f89c90
         <header className="workspace-header">
           <div className="breadcrumb"><span>Projects</span><span>/</span><strong>{project.name}</strong></div>
           <div className="header-actions"><button className="icon-button" aria-label="Search"><Search size={18} /></button><button className="icon-button has-notice" aria-label="Notifications"><Bell size={18} /></button><div className="header-avatar">JD</div></div>
@@ -175,6 +199,7 @@ export default function Workspace() {
             <section className="panel capture-panel"><div className="panel-heading"><div><p className="panel-kicker">Field evidence</p><h2>Site photo log</h2></div><span className="verified-badge"><ShieldCheck size={13} /> Verified</span></div><div className="capture-dropzone" onClick={() => fileInputRef.current?.click()}><div className="capture-icon"><Camera size={22} /></div><strong>Capture or upload a photo</strong><p>Every image is stamped with time and location.</p><span className="capture-button"><Upload size={14} /> Add site photo</span><input ref={fileInputRef} type="file" accept="image/*" capture="environment" onChange={handlePhoto} hidden /></div><button className="location-button" onClick={captureLocation} type="button"><Compass size={14} /> {isLocating ? 'Detecting current location...' : `Stamp location: ${location}`}</button><div className="photo-list">{photos.slice(0, 2).map((photo) => <div className="photo-row" key={`${photo.name}-${photo.timestamp}`}><img src={photo.url} alt="Recent construction evidence" /><div><strong>{photo.name}</strong><small><span><Compass size={12} /> {photo.location}</span><span><ImageIcon size={12} /> {photo.timestamp}</span></small></div><Check className="photo-check" size={16} /></div>)}</div><button className="text-button" onClick={() => setView('reports')}>View all evidence <ArrowUpRight size={14} /></button></section>
           </div>
 
+<<<<<<< HEAD
           {role === 'property_owner' ? (
             <section className="owner-dashboard-grid">
               <div className="owner-column">
@@ -229,6 +254,9 @@ export default function Workspace() {
           ) : (
             <section className="bottom-grid"><section className="panel timeline-panel"><div className="panel-heading"><div><p className="panel-kicker">Schedule</p><h2>Upcoming milestones</h2></div><button className="icon-button" aria-label="More milestone options"><MoreHorizontal size={18} /></button></div><div className="timeline">{milestones.slice(3, 6).map((milestone) => <div className={`timeline-item ${milestone.state}`} key={milestone.title}><span className="timeline-line" /><span className="timeline-dot" /><div><strong>{milestone.title}</strong><small>{milestone.state === 'active' ? 'In progress' : 'Upcoming'}</small></div><time>{milestone.date}</time></div>)}</div></section><section className="panel ai-panel"><div className="panel-heading"><div className="ai-title"><span className="ai-icon"><Sparkles size={15} /></span><div><p className="panel-kicker">CamTrust intelligence</p><h2>Project assistant</h2></div></div><span className="online-label"><span /> Online</span></div><div className="chat-window">{chat.slice(-3).map((message, index) => <div className={`chat-message ${message.from}`} key={`${message.text}-${index}`}>{message.from === 'ai' && <span className="mini-ai"><Bot size={13} /></span>}<p>{message.text}</p></div>)}</div><div className="suggestion-row"><button onClick={() => sendMessage('Summarize this week')}>Summarize this week</button><button onClick={() => sendMessage('What needs attention?')}>What needs attention?</button></div><form className="chat-form" onSubmit={(event) => { event.preventDefault(); sendMessage(); }}><input value={chatInput} onChange={(event) => setChatInput(event.target.value)} placeholder="Ask about your project..." aria-label="Ask the project assistant" /><button type="submit" aria-label="Send message"><Send size={16} /></button></form></section></section>
           )}
+=======
+          <section className="bottom-grid"><section className="panel timeline-panel"><div className="panel-heading"><div><p className="panel-kicker">Schedule</p><h2>Upcoming milestones</h2></div><button className="icon-button" aria-label="More milestone options"><MoreHorizontal size={18} /></button></div><div className="timeline">{milestones.slice(3, 6).map((milestone) => <div className={`timeline-item ${milestone.state}`} key={milestone.title}><span className="timeline-line" /><span className="timeline-dot" /><div><strong>{milestone.title}</strong><small>{milestone.state === 'active' ? 'In progress' : 'Upcoming'}</small></div><time>{milestone.date}</time></div>)}</div></section><section className="panel ai-panel"><div className="panel-heading"><div className="ai-title"><span className="ai-icon"><Sparkles size={15} /></span><div><p className="panel-kicker">CamTrust intelligence</p><h2>Project assistant</h2></div></div><span className="online-label"><span /> Online</span></div><div className="chat-window">{chat.slice(-3).map((message, index) => <div className={`chat-message ${message.from}`} key={`${message.text}-${index}`}>{message.from === 'ai' && <span className="mini-ai"><Bot size={13} /></span>}<p>{message.text}</p></div>)}</div><div className="suggestion-row"><button onClick={() => sendMessage('Summarize this week')}>Summarize this week</button><button onClick={() => sendMessage('What needs attention?')}>What needs attention?</button></div><form className="chat-form" onSubmit={(event) => { event.preventDefault(); sendMessage(); }}><input value={chatInput} onChange={(event) => setChatInput(event.target.value)} placeholder="Ask about your project..." aria-label="Ask the project assistant" /><button type="submit" aria-label="Send message"><Send size={16} /></button></form></section></section>
+>>>>>>> 5714c36df0577f4836d13dd605ee11fb95f89c90
         </section>
       </main>
     </div>
