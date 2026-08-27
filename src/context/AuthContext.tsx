@@ -3,6 +3,7 @@
  */
 
 import { createContext, useState, useEffect, ReactNode } from 'react';
+import { useNavigate } from 'react-router-dom';
 import authService from '../services/authService';
 import { User, LoginCredentials, RegisterData, AuthContextType } from '../types';
 
@@ -15,6 +16,7 @@ export interface AuthProviderProps {
 export const AuthProvider = ({ children }: AuthProviderProps) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
+  const navigate = useNavigate();
 
   useEffect(() => {
     const stored = authService.getStoredUser();
@@ -37,6 +39,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   const logout = (): void => {
     authService.logout();
     setUser(null);
+    navigate('/login', { replace: true });
   };
 
   return (

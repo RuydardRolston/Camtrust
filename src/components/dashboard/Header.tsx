@@ -5,7 +5,6 @@
  */
 
 import React, { useState, useRef, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
 import {
   Menu,
   Search,
@@ -26,7 +25,6 @@ export const Header: React.FC<HeaderProps> = ({
   onSelectTab,
 }) => {
   const { user, logout } = useAuth();
-  const navigate = useNavigate();
   const [notifications, setNotifications] = useState<NotificationItem[]>(INITIAL_NOTIFICATIONS);
   const [notifOpen, setNotifOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
@@ -56,7 +54,6 @@ export const Header: React.FC<HeaderProps> = ({
 
   const handleLogout = () => {
     logout();
-    navigate('/login', { replace: true });
   };
 
   const roleLabel =

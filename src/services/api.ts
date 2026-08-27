@@ -7,7 +7,7 @@ import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios';
 
 const BASE_URL =
   (typeof import.meta !== 'undefined' && import.meta.env?.VITE_API_URL) ||
-  'http://localhost:4000/api';
+  '/api';
 
 export interface ApiError {
   message: string;
