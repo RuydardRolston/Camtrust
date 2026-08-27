@@ -1,69 +1,88 @@
 /**
  * CamTrust Authentication Service
+ * Communicates with backend authentication endpoints via Axios.
  */
 
-import api, { ApiError } from './api';
+import api, { USER_KEY, getAuthToken, setAuthToken, clearAuthSession } from './api';
 import { User, LoginCredentials, RegisterData, AuthResponse } from '../types';
 
-const TOKEN_KEY = 'camtrust_token';
-const USER_KEY = 'camtrust_user';
-
 export const authService = {
-  login: async ({ email, password, rememberMe = false }: LoginCredentials): Promise<AuthResponse> => {
-    try {
-      const data = await api.post<AuthResponse>('/auth/login', { email, password });
+  /**
+   * Log in user with email & password
+   */
+  login: async ({ email, password, rememberMe = true }: LoginCredentials): Promise<AuthResponse> => {
+    const response = await api.post<AuthResponse>('/users/login', { email, password });
+    const data = response.data;
+
+    if (data.token) {
+      setAuthToken(data.token, rememberMe);
+    }
+
+    if (data.user) {
       const storage = rememberMe ? localStorage : sessionStorage;
-      if (data.token) storage.setItem(TOKEN_KEY, data.token);
-      if (data.user) storage.setItem(USER_KEY, JSON.stringify(data.user));
-      return data;
-    } catch (err: unknown) {
-      const error = err as ApiError;
-      if (error.status === 0) {
-        // Dev fallback simulation
-        await new Promise((r) => setTimeout(r, 600));
-        const user: User = { email, role: 'property_owner' };
-        const storage = rememberMe ? localStorage : sessionStorage;
-        storage.setItem(TOKEN_KEY, 'mock_token');
-        storage.setItem(USER_KEY, JSON.stringify(user));
-        return { user, token: 'mock_token' };
-      }
-      throw error;
+      storage.setItem(USER_KEY, JSON.stringify(data.user));
     }
+
+    return data;
   },
 
-  register: async ({ fullName, email, password, role }: RegisterData): Promise<AuthResponse> => {
-    try {
-      const data = await api.post<AuthResponse>('/auth/register', { fullName, email, password, role });
-      if (data.token) localStorage.setItem(TOKEN_KEY, data.token);
-      if (data.user) localStorage.setItem(USER_KEY, JSON.stringify(data.user));
-      return data;
-    } catch (err: unknown) {
-      const error = err as ApiError;
-      if (error.status === 0) {
-        await new Promise((r) => setTimeout(r, 600));
-        const user: User = { fullName, email, role };
-        localStorage.setItem(TOKEN_KEY, 'mock_token');
-        localStorage.setItem(USER_KEY, JSON.stringify(user));
-        return { user, token: 'mock_token' };
-      }
-      throw error;
+  /**
+   * Register a new user account
+   */
+  register: async ({ fullName, email, password, confirmPassword, role }: RegisterData): Promise<AuthResponse> => {
+    const payload = {
+      fullName,
+      email,
+      password,
+      confirmPassword: confirmPassword || password,
+      role,
+    };
+
+    const response = await api.post<AuthResponse>('/users/signup', payload);
+    const data = response.data;
+
+    if (data.token) {
+      setAuthToken(data.token, true);
     }
+
+    if (data.user) {
+      localStorage.setItem(USER_KEY, JSON.stringify(data.user));
+    }
+
+    return data;
   },
 
+  /**
+   * Log out the current user and clear local session state
+   */
   logout: (): void => {
-    localStorage.removeItem(TOKEN_KEY);
-    localStorage.removeItem(USER_KEY);
-    sessionStorage.removeItem(TOKEN_KEY);
-    sessionStorage.removeItem(USER_KEY);
+    clearAuthSession();
   },
 
+  /**
+   * Retrieve currently saved user object from storage
+   */
   getStoredUser: (): User | null => {
     try {
-      const user = localStorage.getItem(USER_KEY) || sessionStorage.getItem(USER_KEY);
-      return user ? (JSON.parse(user) as User) : null;
+      const userStr = localStorage.getItem(USER_KEY) || sessionStorage.getItem(USER_KEY);
+      return userStr ? (JSON.parse(userStr) as User) : null;
     } catch {
       return null;
     }
+  },
+
+  /**
+   * Check if a valid auth token is currently present
+   */
+  isAuthenticated: (): boolean => {
+    return Boolean(getAuthToken());
+  },
+
+  /**
+   * Get raw token string
+   */
+  getToken: (): string | null => {
+    return getAuthToken();
   },
 };
 

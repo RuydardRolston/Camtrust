@@ -5,7 +5,7 @@
 export type UserRole = 'property_owner' | 'professional' | 'administrator';
 
 export interface User {
-  id?: string;
+  id?: string | number;
   fullName?: string;
   email: string;
   role: UserRole | string;
@@ -21,13 +21,17 @@ export interface RegisterData {
   fullName: string;
   email: string;
   password: string;
+  confirmPassword?: string;
   role: UserRole | string;
 }
 
 export interface AuthResponse {
+  message?: string;
+  success?: boolean;
   user: User;
-  token: string;
+  token?: string;
 }
+
 
 export interface AuthContextType {
   user: User | null;

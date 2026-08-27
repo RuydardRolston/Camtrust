@@ -1,437 +1,365 @@
 /**
- * CamTrust - Workspace
- * Role-based dashboard: Admin, Engineer, Property Owner
+ * CamTrust - Unified Workspace Container
+ * Static fixed sidebar on the left, independently scrolling content area on the right,
+ * strictly routed by the authenticated user's role.
  */
 
-import React from 'react';
-import './Workspace.css';
-import './WorkspaceOwner.css';
-import './WorkspaceSidebar.css';
-
-import DashboardSidebar from '../components/DashboardSidebar';
+import React, { useState, useEffect } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import useAuth from '../hooks/useAuth';
 
+// Layout Components
+import Sidebar from '../components/dashboard/Sidebar';
+import Header from '../components/dashboard/Header';
+
+// Shared State & Initial Data
 import {
-  FaChartLine,
-  FaHardHat,
-  FaSeedling,
-  FaMapMarkerAlt,
-  FaPlus,
-  FaClipboardList,
-  FaCheckCircle,
-  FaClock,
-  FaExclamationTriangle,
-  FaArrowRight,
-  FaBuilding,
-  FaLeaf,
-} from 'react-icons/fa';
+  INITIAL_PROJECTS,
+  INITIAL_MILESTONES,
+  INITIAL_REPORTS,
+  INITIAL_TEAM,
+  ProjectItem,
+  MilestoneItem,
+  ReportItem,
+  TeamMember,
+} from '../utils/dashboardData';
 
-const Workspace: React.FC = () => {
-  const { user, loading } = useAuth();
+// Owner Views
+import OwnerDashboardView from './Dashboard/OwnerDashboardView';
+import ProjectsListView from './Dashboard/ProjectsListView';
+import ProjectDetailView from './Dashboard/ProjectDetailView';
+import MilestonesView from './Dashboard/MilestonesView';
+import ProgressReportsView from './Dashboard/ProgressReportsView';
+import DocumentsView from './Dashboard/DocumentsView';
+import NotificationsView from './Dashboard/NotificationsView';
+import AIAssistantView from './Dashboard/AIAssistantView';
+import TeamView from './Dashboard/TeamView';
+import FinanceView from './Dashboard/FinanceView';
 
-  if (loading) {
+// Engineer Views
+import EngineerDashboard from './Engineer/EngineerDashboard';
+import UpdateProgressView from './Engineer/UpdateProgressView';
+
+// Admin Views
+import AdminDashboard from './Admin/AdminDashboard';
+import UsersManagementView from './Admin/UsersManagementView';
+import ProfessionalsVerificationView from './Admin/ProfessionalsVerificationView';
+import ProjectsManagementView from './Admin/ProjectsManagementView';
+
+export const Workspace: React.FC = () => {
+  const { user, isAuthenticated, loading } = useAuth();
+  const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  // Authentication guard
+  useEffect(() => {
+    if (!loading && !isAuthenticated) {
+      navigate('/login', { replace: true });
+    }
+  }, [loading, isAuthenticated, navigate]);
+
+  const initialTab = searchParams.get('tab') || 'dashboard';
+  const [activeTab, setActiveTab] = useState<string>(initialTab);
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState<boolean>(false);
+
+  // Live Shared Data State
+  const [projects, setProjects] = useState<ProjectItem[]>(INITIAL_PROJECTS);
+  const [milestones, setMilestones] = useState<MilestoneItem[]>(INITIAL_MILESTONES);
+  const [reports, setReports] = useState<ReportItem[]>(INITIAL_REPORTS);
+  const [team] = useState<TeamMember[]>(INITIAL_TEAM);
+  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
+
+  const handleSelectTab = (tabId: string) => {
+    setActiveTab(tabId);
+    setSearchParams({ tab: tabId });
+    if (tabId === 'projects') {
+      setSelectedProjectId(null);
+    }
+  };
+
+  const handleSelectProject = (projectId: string) => {
+    setSelectedProjectId(projectId);
+    setActiveTab('project-detail');
+  };
+
+  const handleAddProject = (newProject: Omit<ProjectItem, 'id'>) => {
+    const created: ProjectItem = {
+      ...newProject,
+      id: String(projects.length + 1),
+    };
+    setProjects([created, ...projects]);
+  };
+
+  const handleAddMilestone = (newMilestone: Omit<MilestoneItem, 'id'>) => {
+    const created: MilestoneItem = {
+      ...newMilestone,
+      id: 'm' + (milestones.length + 1),
+    };
+    setMilestones([...milestones, created]);
+  };
+
+  const handleToggleMilestone = (id: string) => {
+    setMilestones((prev) =>
+      prev.map((m) => {
+        if (m.id === id) {
+          const nextStatus =
+            m.status === 'Completed'
+              ? 'Pending'
+              : m.status === 'Pending'
+              ? 'In Progress'
+              : 'Completed';
+          return { ...m, status: nextStatus };
+        }
+        return m;
+      })
+    );
+  };
+
+  const handleAddReport = (newReport: Omit<ReportItem, 'id'>) => {
+    const created: ReportItem = {
+      ...newReport,
+      id: 'r' + (reports.length + 1),
+    };
+    setReports([created, ...reports]);
+  };
+
+  const handleEngineerProgressSubmit = (updateData: {
+    projectId: string;
+    milestone: string;
+    progress: number;
+    notes: string;
+    photos: string[];
+  }) => {
+    // 1. Update project overall progress
+    setProjects((prev) =>
+      prev.map((p) => (p.id === updateData.projectId ? { ...p, progress: updateData.progress } : p))
+    );
+
+    // 2. Add verified field report with stamped photos
+    const newReport: ReportItem = {
+      id: 'r' + (reports.length + 1),
+      projectId: updateData.projectId,
+      projectName: projects.find((p) => p.id === updateData.projectId)?.name || 'Construction Site',
+      title: `${updateData.milestone} Update (${updateData.progress}%)`,
+      date: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'long', year: 'numeric' }),
+      author: user?.fullName || 'Eng. Mark Tala',
+      authorRole: 'Civil Engineer',
+      photosCount: updateData.photos.length,
+      images: updateData.photos,
+      notes: updateData.notes,
+      milestone: updateData.milestone,
+    };
+
+    setReports([newReport, ...reports]);
+  };
+
+  if (loading || !user) {
     return (
-      <div className="workspace-loading">
-        <div className="loading-spinner" />
-        <p>Loading your workspace...</p>
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-10 h-10 border-4 border-orange-500 border-t-transparent rounded-full animate-spin" />
+          <p className="text-sm font-semibold text-gray-600">Loading your workspace...</p>
+        </div>
       </div>
     );
   }
 
-  const role = user?.role || 'professional';
+  // The role is strictly the authenticated user's role
+  const role = user.role;
+  const isOwner = role === 'property_owner';
+  const isEngineer = role === 'professional' || role === 'engineer';
+  const isAdmin = role === 'administrator' || role === 'admin';
 
-  // Safely determine the user's display name
-  const displayName =
-    (user as any)?.name ||
-    (user as any)?.firstName ||
-    (user as any)?.username ||
-    (user as any)?.email?.split('@')[0] ||
-    'User';
-
-  const displayInitial = displayName.charAt(0).toUpperCase();
+  const selectedProject =
+    projects.find((p) => p.id === selectedProjectId) || projects[0];
 
   return (
-    <div className="workspace-shell">
+    <div className="flex h-screen bg-slate-50 overflow-hidden font-sans antialiased">
+      {/* 1. Left Static Non-Moving Sidebar */}
+      <Sidebar
+        activeTab={activeTab}
+        onSelectTab={handleSelectTab}
+        mobileOpen={mobileSidebarOpen}
+        onCloseMobile={() => setMobileSidebarOpen(false)}
+      />
 
-      {role === 'property_owner' ? (
-        <DashboardSidebar
-          role="property_owner"
-          title="CamTrust"
+      {/* 2. Right Main Scrollable Content Area */}
+      <div className="flex-1 flex flex-col h-screen overflow-y-auto min-w-0">
+        {/* Sticky Header */}
+        <Header
+          onOpenMobileSidebar={() => setMobileSidebarOpen(true)}
+          onSelectTab={handleSelectTab}
         />
-      ) : (
-        <aside className="workspace-sidebar">
-          <div className="sidebar-brand">
-            <FaChartLine />
-            <span>CamTrust</span>
-          </div>
 
-          <nav className="sidebar-nav">
-            <a href="#overview" className="sidebar-link active">
-              <FaChartLine />
-              <span>Overview</span>
-            </a>
+        {/* Dynamic Role-Based Views */}
+        <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto pb-16">
+          {/* PROPERTY OWNER ROLE VIEWS */}
+          {isOwner && (
+            <>
+              {activeTab === 'dashboard' && (
+                <OwnerDashboardView
+                  userName={user?.fullName || 'John'}
+                  projects={projects}
+                  milestones={milestones}
+                  reports={reports}
+                  onSelectProject={handleSelectProject}
+                  onNavigateTab={handleSelectTab}
+                />
+              )}
 
-            <a href="#projects" className="sidebar-link">
-              <FaClipboardList />
-              <span>Projects</span>
-            </a>
+              {activeTab === 'projects' && (
+                <ProjectsListView
+                  projects={projects}
+                  onSelectProject={handleSelectProject}
+                  onAddProject={handleAddProject}
+                />
+              )}
 
-            <a href="#tasks" className="sidebar-link">
-              <FaCheckCircle />
-              <span>Tasks</span>
-            </a>
+              {activeTab === 'project-detail' && selectedProject && (
+                <ProjectDetailView
+                  project={selectedProject}
+                  milestones={milestones}
+                  reports={reports}
+                  team={team}
+                  onBack={() => handleSelectTab('projects')}
+                  onNavigateTab={handleSelectTab}
+                />
+              )}
 
-            <a href="#reports" className="sidebar-link">
-              <FaClock />
-              <span>Reports</span>
-            </a>
-          </nav>
-        </aside>
-      )}
+              {activeTab === 'milestones' && (
+                <MilestonesView
+                  milestones={milestones}
+                  onAddMilestone={handleAddMilestone}
+                  onToggleMilestoneStatus={handleToggleMilestone}
+                />
+              )}
 
-      <main
-        className={`workspace-main ${
-          role === 'property_owner' ? 'with-sidebar' : ''
-        }`}
-      >
+              {activeTab === 'reports' && (
+                <ProgressReportsView
+                  reports={reports}
+                  onAddReport={handleAddReport}
+                />
+              )}
 
-        {/* Header */}
-        <header className="workspace-header">
-          <div>
-            <h1>Welcome to your Workspace</h1>
-            <p>
-              Manage your projects and monitor your activities from one place.
-            </p>
-          </div>
+              {activeTab === 'documents' && <DocumentsView />}
+              {activeTab === 'notifications' && <NotificationsView />}
+              {activeTab === 'ai-assistant' && <AIAssistantView />}
+              {activeTab === 'team' && <TeamView />}
+              {activeTab === 'finance' && <FinanceView />}
 
-          <div className="workspace-user">
-            <div className="workspace-user-avatar">
-              {displayInitial}
-            </div>
-
-            <div className="workspace-user-info">
-              <strong>{displayName}</strong>
-              <span>{role.replace('_', ' ')}</span>
-            </div>
-          </div>
-        </header>
-
-        {/* Statistics */}
-        <section className="workspace-stats" id="overview">
-
-          <div className="stat-card">
-            <div className="stat-icon">
-              <FaClipboardList />
-            </div>
-
-            <div className="stat-content">
-              <span className="stat-label">Total Projects</span>
-              <strong className="stat-value">12</strong>
-            </div>
-          </div>
-
-          <div className="stat-card">
-            <div className="stat-icon">
-              <FaCheckCircle />
-            </div>
-
-            <div className="stat-content">
-              <span className="stat-label">Completed</span>
-              <strong className="stat-value">7</strong>
-            </div>
-          </div>
-
-          <div className="stat-card">
-            <div className="stat-icon">
-              <FaClock />
-            </div>
-
-            <div className="stat-content">
-              <span className="stat-label">In Progress</span>
-              <strong className="stat-value">4</strong>
-            </div>
-          </div>
-
-          <div className="stat-card">
-            <div className="stat-icon warning">
-              <FaExclamationTriangle />
-            </div>
-
-            <div className="stat-content">
-              <span className="stat-label">Needs Attention</span>
-              <strong className="stat-value">1</strong>
-            </div>
-          </div>
-
-        </section>
-
-        {/* Property Owner Dashboard */}
-        {role === 'property_owner' ? (
-
-          <section className="owner-dashboard">
-
-            <div className="owner-dashboard-header">
-              <div>
-                <h2>Property Owner Dashboard</h2>
-                <p>
-                  Monitor your construction and agricultural projects.
-                </p>
-              </div>
-
-              <button className="primary-action">
-                <FaPlus />
-                <span>New Project</span>
-              </button>
-            </div>
-
-            <div className="owner-project-grid">
-
-              <div className="owner-project-card">
-                <div className="owner-project-icon">
-                  <FaBuilding />
-                </div>
-
-                <div className="owner-project-content">
-                  <h3>Construction Projects</h3>
-                  <p>
-                    Track the progress of your construction projects.
+              {activeTab === 'messages' && (
+                <div className="bg-white p-8 rounded-2xl border border-gray-100 shadow-sm text-center space-y-3">
+                  <h2 className="text-xl font-bold text-gray-900">Project Messaging</h2>
+                  <p className="text-sm text-gray-500 max-w-md mx-auto">
+                    Direct communications with verified engineers and site supervisors are logged and verified.
                   </p>
+                  <button
+                    onClick={() => handleSelectTab('team')}
+                    className="px-5 py-2.5 bg-orange-500 text-white font-bold text-sm rounded-xl shadow-md shadow-orange-500/20"
+                  >
+                    Open Team Contacts
+                  </button>
+                </div>
+              )}
 
-                  <div className="owner-project-meta">
-                    <span>
-                      <FaHardHat />
-                      4 projects
-                    </span>
-
-                    <span>
-                      <FaArrowRight />
-                    </span>
+              {activeTab === 'settings' && (
+                <div className="bg-white p-8 rounded-2xl border border-gray-100 shadow-sm space-y-5 max-w-xl">
+                  <h2 className="text-xl font-bold text-gray-900">Account Settings</h2>
+                  <div className="space-y-3 text-sm">
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-600 mb-1">Email</label>
+                      <input type="text" readOnly value={user.email} className="w-full p-2.5 bg-gray-50 border rounded-xl" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-600 mb-1">Full Name</label>
+                      <input type="text" readOnly value={user.fullName || 'User'} className="w-full p-2.5 bg-gray-50 border rounded-xl" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-600 mb-1">Assigned Role</label>
+                      <input type="text" readOnly value="Project Owner" className="w-full p-2.5 bg-gray-50 border rounded-xl font-bold text-orange-600" />
+                    </div>
                   </div>
                 </div>
-              </div>
+              )}
+            </>
+          )}
 
-              <div className="owner-project-card">
-                <div className="owner-project-icon">
-                  <FaLeaf />
-                </div>
+          {/* CIVIL ENGINEER / PROFESSIONAL ROLE VIEWS */}
+          {isEngineer && (
+            <>
+              {activeTab === 'dashboard' && (
+                <EngineerDashboard
+                  projects={projects}
+                  onSelectProject={handleSelectProject}
+                  onNavigateTab={handleSelectTab}
+                />
+              )}
 
-                <div className="owner-project-content">
-                  <h3>Agricultural Projects</h3>
-                  <p>
-                    Monitor your agricultural activities and progress.
-                  </p>
+              {activeTab === 'projects' && (
+                <ProjectsListView
+                  projects={projects}
+                  onSelectProject={handleSelectProject}
+                  onAddProject={handleAddProject}
+                />
+              )}
 
-                  <div className="owner-project-meta">
-                    <span>
-                      <FaSeedling />
-                      3 projects
-                    </span>
+              {activeTab === 'project-detail' && selectedProject && (
+                <ProjectDetailView
+                  project={selectedProject}
+                  milestones={milestones}
+                  reports={reports}
+                  team={team}
+                  onBack={() => handleSelectTab('projects')}
+                  onNavigateTab={handleSelectTab}
+                />
+              )}
 
-                    <span>
-                      <FaArrowRight />
-                    </span>
-                  </div>
-                </div>
-              </div>
+              {activeTab === 'update-progress' && (
+                <UpdateProgressView
+                  projects={projects}
+                  onSubmitUpdate={handleEngineerProgressSubmit}
+                />
+              )}
 
-              <div className="owner-project-card">
-                <div className="owner-project-icon">
-                  <FaMapMarkerAlt />
-                </div>
+              {activeTab === 'reports' && (
+                <ProgressReportsView
+                  reports={reports}
+                  onAddReport={handleAddReport}
+                />
+              )}
 
-                <div className="owner-project-content">
-                  <h3>Land & Locations</h3>
-                  <p>
-                    View and manage the land associated with your projects.
-                  </p>
+              {activeTab === 'documents' && <DocumentsView />}
+              {activeTab === 'messages' && <TeamView />}
+              {activeTab === 'settings' && <DocumentsView />}
+            </>
+          )}
 
-                  <div className="owner-project-meta">
-                    <span>
-                      <FaMapMarkerAlt />
-                      5 locations
-                    </span>
+          {/* ADMINISTRATOR ROLE VIEWS */}
+          {isAdmin && (
+            <>
+              {activeTab === 'dashboard' && (
+                <AdminDashboard onNavigateTab={handleSelectTab} />
+              )}
 
-                    <span>
-                      <FaArrowRight />
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-            </div>
-
-            <div className="owner-dashboard-section">
-              <div className="section-heading">
-                <div>
-                  <h2>Recent Activity</h2>
-                  <p>
-                    Keep track of the latest updates on your projects.
-                  </p>
-                </div>
-
-                <button className="view-all-button">
-                  View all
-                  <FaArrowRight />
-                </button>
-              </div>
-
-              <div className="activity-list">
-
-                <div className="activity-item">
-                  <div className="activity-icon success">
-                    <FaCheckCircle />
-                  </div>
-
-                  <div className="activity-content">
-                    <strong>Project milestone completed</strong>
-                    <span>
-                      Construction project reached a new milestone.
-                    </span>
-                  </div>
-
-                  <time>Today</time>
-                </div>
-
-                <div className="activity-item">
-                  <div className="activity-icon">
-                    <FaClock />
-                  </div>
-
-                  <div className="activity-content">
-                    <strong>New project update</strong>
-                    <span>
-                      A professional submitted a new progress update.
-                    </span>
-                  </div>
-
-                  <time>Yesterday</time>
-                </div>
-
-                <div className="activity-item">
-                  <div className="activity-icon warning">
-                    <FaExclamationTriangle />
-                  </div>
-
-                  <div className="activity-content">
-                    <strong>Project requires attention</strong>
-                    <span>
-                      Review the latest information submitted for your project.
-                    </span>
-                  </div>
-
-                  <time>2 days ago</time>
-                </div>
-
-              </div>
-            </div>
-
-          </section>
-
-        ) : (
-
-          /* General Dashboard */
-          <section className="workspace-content">
-
-            <div className="workspace-section-header">
-              <div>
-                <h2>Recent Projects</h2>
-                <p>
-                  Here are the latest projects associated with your account.
-                </p>
-              </div>
-
-              <button className="primary-action">
-                <FaPlus />
-                <span>New Project</span>
-              </button>
-            </div>
-
-            <div className="workspace-project-grid">
-
-              <article className="workspace-project-card">
-                <div className="project-card-icon">
-                  <FaBuilding />
-                </div>
-
-                <div className="project-card-body">
-                  <h3>Residential Construction</h3>
-
-                  <p>
-                    Residential construction project currently in progress.
-                  </p>
-
-                  <div className="project-card-footer">
-                    <span className="project-status in-progress">
-                      <FaClock />
-                      In Progress
-                    </span>
-
-                    <span className="project-location">
-                      <FaMapMarkerAlt />
-                      Yaoundé
-                    </span>
-                  </div>
-                </div>
-              </article>
-
-              <article className="workspace-project-card">
-                <div className="project-card-icon">
-                  <FaLeaf />
-                </div>
-
-                <div className="project-card-body">
-                  <h3>Agricultural Project</h3>
-
-                  <p>
-                    Agricultural development project being monitored remotely.
-                  </p>
-
-                  <div className="project-card-footer">
-                    <span className="project-status completed">
-                      <FaCheckCircle />
-                      Completed
-                    </span>
-
-                    <span className="project-location">
-                      <FaMapMarkerAlt />
-                      West Region
-                    </span>
-                  </div>
-                </div>
-              </article>
-
-              <article className="workspace-project-card">
-                <div className="project-card-icon">
-                  <FaHardHat />
-                </div>
-
-                <div className="project-card-body">
-                  <h3>Building Renovation</h3>
-
-                  <p>
-                    Renovation project currently under professional supervision.
-                  </p>
-
-                  <div className="project-card-footer">
-                    <span className="project-status pending">
-                      <FaClock />
-                      Pending
-                    </span>
-
-                    <span className="project-location">
-                      <FaMapMarkerAlt />
-                      Douala
-                    </span>
-                  </div>
-                </div>
-              </article>
-
-            </div>
-
-          </section>
-        )}
-
-      </main>
+              {activeTab === 'users-mgmt' && <UsersManagementView />}
+              {activeTab === 'verification' && <ProfessionalsVerificationView />}
+              {activeTab === 'projects-mgmt' && (
+                <ProjectsManagementView
+                  projects={projects}
+                  onSelectProject={handleSelectProject}
+                />
+              )}
+              {activeTab === 'reports' && (
+                <ProgressReportsView
+                  reports={reports}
+                  onAddReport={handleAddReport}
+                />
+              )}
+              {activeTab === 'settings' && <UsersManagementView />}
+            </>
+          )}
+        </main>
+      </div>
     </div>
   );
 };

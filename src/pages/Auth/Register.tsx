@@ -103,11 +103,15 @@ export const Register: React.FC = () => {
         fullName: formData.fullName,
         email: formData.email,
         password: formData.password,
+        confirmPassword: formData.confirmPassword,
         role: formData.role,
       });
-      setSuccessMessage('Account created successfully! You can now log in.');
+      setSuccessMessage('Account created successfully! Redirecting to login...');
+      window.setTimeout(() => {
+        window.location.href = '/login';
+      }, 1500);
     } catch (err: unknown) {
-      const error = err as Error;
+      const error = err as { message?: string };
       setServerError(error.message || 'Registration failed. Please try again.');
     } finally {
       setLoading(false);

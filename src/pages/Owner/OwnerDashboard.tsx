@@ -1,4 +1,3 @@
-import React from 'react';
 import DashboardSidebar from '../../components/DashboardSidebar';
 import './Owner.css';
 import { useNavigate } from 'react-router-dom';

@@ -76,7 +76,7 @@ export const Login: React.FC = () => {
       setSuccessMessage('Logged in successfully!');
       window.setTimeout(() => navigate(`/dashboard/${user.role}`), 250);
     } catch (err: unknown) {
-      const error = err as Error;
+      const error = err as { message?: string };
       setServerError(error.message || 'Invalid email or password.');
     } finally {
       setLoading(false);

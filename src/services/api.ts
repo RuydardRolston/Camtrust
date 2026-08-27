@@ -1,47 +1,103 @@
 /**
- * CamTrust API Client
+ * CamTrust Axios API Client
+ * Configured with base URL, authentication headers, and error interceptors.
  */
 
-const API_BASE_URL = (import.meta as unknown as { env: Record<string, string> }).env?.VITE_API_URL || 'http://localhost:5000/api';
+import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios';
 
-export interface ApiError extends Error {
+const BASE_URL =
+  (typeof import.meta !== 'undefined' && import.meta.env?.VITE_API_URL) ||
+  'http://localhost:4000/api';
+
+export interface ApiError {
+  message: string;
   status?: number;
+  errors?: Record<string, string> | string[];
 }
 
-export const request = async <T = unknown>(endpoint: string, options: RequestInit = {}): Promise<T> => {
-  const url = endpoint.startsWith('http') ? endpoint : `${API_BASE_URL}${endpoint}`;
-  const token = localStorage.getItem('camtrust_token') || sessionStorage.getItem('camtrust_token');
+export const TOKEN_KEY = 'camtrust_token';
+export const USER_KEY = 'camtrust_user';
 
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    ...(options.headers as Record<string, string>),
-  };
+export const getAuthToken = (): string | null => {
+  return (
+    localStorage.getItem(TOKEN_KEY) ||
+    sessionStorage.getItem(TOKEN_KEY) ||
+    localStorage.getItem('token') ||
+    sessionStorage.getItem('token')
+  );
+};
 
-  try {
-    const response = await fetch(url, { ...options, headers });
-    const data = await response.json().catch(() => ({}));
-
-    if (!response.ok) {
-      const message = data.message || (response.status === 401 ? 'Invalid email or password.' : 'An error occurred.');
-      const error: ApiError = new Error(message);
-      error.status = response.status;
-      throw error;
-    }
-    return data as T;
-  } catch (error: unknown) {
-    if ((error as ApiError).status !== undefined) throw error;
-    const netErr: ApiError = new Error('Unable to connect to the server. Please try again.');
-    netErr.status = 0;
-    throw netErr;
+export const setAuthToken = (token: string, remember: boolean = true): void => {
+  if (remember) {
+    localStorage.setItem(TOKEN_KEY, token);
+    sessionStorage.removeItem(TOKEN_KEY);
+  } else {
+    sessionStorage.setItem(TOKEN_KEY, token);
+    localStorage.removeItem(TOKEN_KEY);
   }
 };
 
-export const api = {
-  post: <T = unknown>(endpoint: string, body: unknown): Promise<T> =>
-    request<T>(endpoint, { method: 'POST', body: JSON.stringify(body) }),
-  get: <T = unknown>(endpoint: string): Promise<T> =>
-    request<T>(endpoint, { method: 'GET' }),
+export const clearAuthSession = (): void => {
+  localStorage.removeItem(TOKEN_KEY);
+  localStorage.removeItem(USER_KEY);
+  localStorage.removeItem('token');
+  sessionStorage.removeItem(TOKEN_KEY);
+  sessionStorage.removeItem(USER_KEY);
+  sessionStorage.removeItem('token');
 };
+
+const api = axios.create({
+  baseURL: BASE_URL,
+  headers: {
+    'Content-Type': 'application/json',
+  },
+  timeout: 15000,
+});
+
+// Request interceptor: Attach JWT token if present
+api.interceptors.request.use(
+  (config: InternalAxiosRequestConfig) => {
+    const token = getAuthToken();
+    if (token && config.headers) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => Promise.reject(error)
+);
+
+// Response interceptor: Extract errors and handle auth failures
+api.interceptors.response.use(
+  (response) => response,
+  (error: AxiosError<{ message?: string; error?: string; errors?: Record<string, string> }>) => {
+    const status = error.response?.status;
+    const responseData = error.response?.data;
+    const isAuthEndpoint =
+      error.config?.url?.includes('/login') ||
+      error.config?.url?.includes('/signup');
+
+    // If unauthorized and not on login/signup, purge tokens and redirect
+    if (status === 401 && !isAuthEndpoint) {
+      clearAuthSession();
+      if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
+        window.location.href = '/login';
+      }
+    }
+
+    const message =
+      responseData?.message ||
+      responseData?.error ||
+      error.message ||
+      'An unexpected error occurred. Please try again.';
+
+    const formattedError: ApiError = {
+      message,
+      status: status || 0,
+      errors: responseData?.errors,
+    };
+
+    return Promise.reject(formattedError);
+  }
+);
 
 export default api;
