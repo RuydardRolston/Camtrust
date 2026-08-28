@@ -21,9 +21,11 @@ import {
   UploadCloud,
   LogOut,
   HardHat,
-  X
+  X,
+  ChevronDown
 } from 'lucide-react';
 import useAuth from '../../hooks/useAuth';
+import { useCurrency } from '../../context/CurrencyContext';
 
 export interface SidebarProps {
   activeTab: string;
@@ -161,7 +163,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </div>
           </div>
 
-          {/* Navigation Items (Clean, compact spacing so everything fits on screen) */}
+          {/* Currency Converter (Owner & Engineer only) */}
+          {(isOwner || isEngineer) && (
+            <div className="px-3 py-2 flex-shrink-0">
+              <CurrencySwitcher />
+            </div>
+          )}
+
+          {/* Navigation Items */}
           <nav className="flex-1 px-3 py-1 space-y-0.5 overflow-y-auto scrollbar-none">
             {navItems.map((item) => {
               const Icon = item.icon;
@@ -223,6 +232,55 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </div>
       </aside>
     </>
+  );
+};
+
+const CurrencySwitcher: React.FC = () => {
+  const { currency, setCurrency, convert, loading } = useCurrency();
+  const [open, setOpen] = React.useState(false);
+
+  const options: { value: Currency; label: string }[] = [
+    { value: 'XAF', label: 'FCFA' },
+    { value: 'USD', label: 'USD' },
+    { value: 'EUR', label: 'EUR' },
+    { value: 'GBP', label: 'GBP' },
+    { value: 'NGN', label: 'NGN' },
+    { value: 'GHS', label: 'GHS' },
+    { value: 'KES', label: 'KES' },
+  ];
+
+  return (
+    <div className="relative">
+      <button
+        onClick={() => setOpen(!open)}
+        className="w-full flex items-center justify-between px-3 py-2 rounded-xl bg-slate-800/60 border border-slate-700/60 text-xs font-semibold text-slate-200 hover:border-orange-500/40 transition"
+      >
+        <span className="flex items-center gap-2">
+          <DollarSign size={14} className="text-orange-400" />
+          <span>{currency} {loading ? '...' : ''}</span>
+        </span>
+        <ChevronDown size={14} className={`text-slate-400 transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+
+      {open && (
+        <div className="absolute z-50 mt-1 w-full bg-[#1a2733] border border-slate-700/80 rounded-xl shadow-xl overflow-hidden">
+          {options.map((opt) => (
+            <button
+              key={opt.value}
+              onClick={() => { setCurrency(opt.value); setOpen(false); }}
+              className={`w-full text-left px-3 py-2 text-xs font-medium transition hover:bg-slate-800/80 ${
+                currency === opt.value ? 'text-orange-400 bg-slate-800/60' : 'text-slate-300'
+              }`}
+            >
+              <span className="flex items-center justify-between">
+                <span>{opt.label}</span>
+                {currency === opt.value && <span className="text-[10px] text-orange-400">●</span>}
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
   );
 };
 

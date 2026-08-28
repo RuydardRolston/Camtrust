@@ -10,6 +10,7 @@ import {
   CheckCircle2,
   FileSpreadsheet
 } from 'lucide-react';
+import { useCurrency } from '../../context/CurrencyContext';
 
 export const FinanceView: React.FC = () => {
   const totalBudget = 250000;
@@ -17,6 +18,7 @@ export const FinanceView: React.FC = () => {
   const remaining = totalBudget - spent;
   const spentPercent = Math.round((spent / totalBudget) * 100);
   const remainingPercent = 100 - spentPercent;
+  const { convert } = useCurrency();
 
   const categories = [
     { name: 'Materials (Cement, Steel, Wood)', amount: 85000, percent: 52, color: 'bg-orange-500' },
@@ -81,7 +83,7 @@ export const FinanceView: React.FC = () => {
             </svg>
             <div className="absolute inset-0 flex flex-col items-center justify-center">
               <span className="text-xs text-gray-400 font-bold uppercase">Total Budget</span>
-              <span className="text-2xl font-extrabold text-gray-900">${totalBudget.toLocaleString()}</span>
+              <span className="text-2xl font-extrabold text-gray-900">{convert(totalBudget)}</span>
               <span className="text-xs font-bold text-orange-600 bg-orange-50 px-2 py-0.5 rounded-full mt-1">
                 {spentPercent}% Spent
               </span>
@@ -92,7 +94,7 @@ export const FinanceView: React.FC = () => {
             <div className="p-3 bg-orange-50/80 rounded-xl border border-orange-100 text-left">
               <div className="text-[10px] font-bold text-orange-700 uppercase">Total Spent</div>
               <div className="text-base font-extrabold text-orange-600 mt-0.5">
-                ${spent.toLocaleString()}
+                {convert(spent)}
               </div>
               <div className="text-[10px] text-orange-600/80 font-medium">({spentPercent}%)</div>
             </div>
@@ -100,7 +102,7 @@ export const FinanceView: React.FC = () => {
             <div className="p-3 bg-emerald-50/80 rounded-xl border border-emerald-100 text-left">
               <div className="text-[10px] font-bold text-emerald-700 uppercase">Remaining</div>
               <div className="text-base font-extrabold text-emerald-600 mt-0.5">
-                ${remaining.toLocaleString()}
+                {convert(remaining)}
               </div>
               <div className="text-[10px] text-emerald-600/80 font-medium">({remainingPercent}%)</div>
             </div>
@@ -127,7 +129,7 @@ export const FinanceView: React.FC = () => {
                 <div className="flex items-center justify-between text-xs sm:text-sm">
                   <span className="font-bold text-gray-900">{c.name}</span>
                   <div className="text-right">
-                    <span className="font-bold text-gray-900">${c.amount.toLocaleString()}</span>
+                    <span className="font-bold text-gray-900">{convert(c.amount)}</span>
                     <span className="text-xs text-gray-400 ml-1.5">({c.percent}%)</span>
                   </div>
                 </div>
@@ -148,7 +150,7 @@ export const FinanceView: React.FC = () => {
                   <CheckCircle2 size={14} className="text-emerald-600" />
                   <span className="font-semibold text-gray-800">Foundation Milestone Release</span>
                 </div>
-                <span className="font-bold text-emerald-700">$35,000 • Paid 28 Apr 2025</span>
+                <span className="font-bold text-emerald-700">{convert(35000)} • Paid 28 Apr 2025</span>
               </div>
 
               <div className="flex items-center justify-between p-2.5 rounded-lg bg-emerald-50/50 border border-emerald-100">
@@ -156,7 +158,7 @@ export const FinanceView: React.FC = () => {
                   <CheckCircle2 size={14} className="text-emerald-600" />
                   <span className="font-semibold text-gray-800">Walls & Masonry Milestone Release</span>
                 </div>
-                <span className="font-bold text-emerald-700">$42,000 • Paid 02 Jun 2025</span>
+                <span className="font-bold text-emerald-700">{convert(42000)} • Paid 02 Jun 2025</span>
               </div>
             </div>
           </div>

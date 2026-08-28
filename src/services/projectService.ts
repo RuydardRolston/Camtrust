@@ -1,52 +1,62 @@
-/**
- * CamTrust Project Service
- * Axios API requests for projects, milestones, and evidence uploads.
- */
-
 import api from './api';
 
-export interface ProjectData {
-  id?: string | number;
+export interface ProjectPayload {
   title: string;
-  description?: string;
-  location?: string;
-  budget?: number;
-  status?: string;
-  ownerId?: string | number;
-  engineerId?: string | number;
-  [key: string]: unknown;
+  location: string;
+  description: string;
+  budget: string;
+  startDate: string;
+  estimatedDuration?: string;
 }
 
-export const createProject = async <T = ProjectData>(data: Partial<ProjectData>): Promise<T> => {
-  const response = await api.post<T>('/projects', data);
-  return response.data;
-};
+export interface ProjectUpdatePayload
+  extends Partial<Omit<ProjectPayload, 'budget'>> {}
 
-export const getMyProjects = async <T = ProjectData[]>(): Promise<T> => {
-  const response = await api.get<T>('/projects/mine');
-  return response.data;
-};
-
-export const getProjectById = async <T = ProjectData>(id: string | number): Promise<T> => {
-  const response = await api.get<T>(`/projects/${id}`);
-  return response.data;
-};
-
-export const uploadSiteEvidence = async <T = unknown>(
-  milestoneId: string | number,
-  formData: FormData
-): Promise<T> => {
-  const response = await api.post<T>(`/milestones/${milestoneId}/evidence`, formData, {
-    headers: { 'Content-Type': 'multipart/form-data' },
-  });
-  return response.data;
-};
+export interface ProjectStatusPayload {
+  status: string;
+  rejectionReason?: string;
+}
 
 export const projectService = {
-  createProject,
-  getMyProjects,
-  getProjectById,
-  uploadSiteEvidence,
+  createProject: async (data: ProjectPayload): Promise<any> => {
+    const response = await api.post('/projects/create', data);
+    return response.data;
+  },
+
+  getMyProjects: async (): Promise<any[]> => {
+    const response = await api.get('/projects/my');
+    return response.data;
+  },
+
+  getProjectById: async (id: string | number): Promise<any> => {
+    const response = await api.get(`/projects/${id}`);
+    return response.data;
+  },
+
+  getAllProjects: async (): Promise<any[]> => {
+    const response = await api.get('/projects/all');
+    return response.data;
+  },
+
+  updateProject: async (
+    id: string | number,
+    data: ProjectUpdatePayload
+  ): Promise<any> => {
+    const response = await api.put(`/projects/${id}`, data);
+    return response.data;
+  },
+
+  updateProjectStatus: async (
+    id: string | number,
+    data: ProjectStatusPayload
+  ): Promise<any> => {
+    const response = await api.put(`/projects/${id}/status`, data);
+    return response.data;
+  },
+
+  deleteProject: async (id: string | number): Promise<void> => {
+    await api.delete(`/projects/${id}`);
+  },
 };
 
 export default projectService;

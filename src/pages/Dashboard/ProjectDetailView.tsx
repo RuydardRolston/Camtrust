@@ -1,10 +1,9 @@
 /**
- * CamTrust - Project Detail View (Screen 8)
- * Matches the reference poster: Tab navigation (Overview, Milestones, Reports, Team, Finance),
- * 72% overall progress gauge, metadata grid, and verified site photo gallery.
+ * CamTrust - Project Detail View
+ * Real database-backed project detail with milestones, reports, and documents.
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   ArrowLeft,
   MapPin,
@@ -15,72 +14,172 @@ import {
   Layers,
   FileText,
   Users as UsersIcon,
-  PieChart
+  PieChart,
+  Loader2
 } from 'lucide-react';
-import { ProjectItem, MilestoneItem, ReportItem, TeamMember } from '../../utils/dashboardData';
+import useAuth from '../../hooks/useAuth';
+import projectService from '../../services/projectService';
+import milestoneService from '../../services/milestoneService';
+import reportService from '../../services/reportService';
+import documentService from '../../services/documentService';
+import { joinProjectRoom, leaveProjectRoom } from '../../services/socket';
+import { useCurrency } from '../../context/CurrencyContext';
 
 export interface ProjectDetailViewProps {
-  project: ProjectItem;
-  milestones: MilestoneItem[];
-  reports: ReportItem[];
-  team: TeamMember[];
+  projectId: string;
   onBack: () => void;
   onNavigateTab: (tabId: string) => void;
 }
 
+export interface Project {
+  id: number;
+  title: string;
+  location: string;
+  description: string;
+  budget: string;
+  status: string;
+  startDate: string;
+  ownerId: number;
+}
+
+export interface Milestone {
+  id: number;
+  projectId: number;
+  label: string;
+  plannedDate: string;
+  completionRate: number;
+  status: string;
+}
+
+export interface Report {
+  id: number;
+  projectId: number;
+  professionalId: number;
+  summary: string;
+  generatedAt: string;
+}
+
+export interface Document {
+  id: number;
+  projectId: number;
+  fileName: string;
+  fileUrl: string;
+  category: string;
+  uploadedAt: string;
+}
+
 export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
-  project,
-  milestones,
-  reports,
-  team,
+  projectId,
   onBack,
   onNavigateTab,
 }) => {
-  const [activeSubTab, setActiveSubTab] = useState<'overview' | 'milestones' | 'reports' | 'team' | 'finance'>('overview');
+  const { user } = useAuth();
+  const { convert } = useCurrency();
+  const [project, setProject] = useState<Project | null>(null);
+  const [milestones, setMilestones] = useState<Milestone[]>([]);
+  const [reports, setReports] = useState<Report[]>([]);
+  const [documents, setDocuments] = useState<Document[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [activeSubTab, setActiveSubTab] = useState<'overview' | 'milestones' | 'reports' | 'documents'>('overview');
 
-  const projectMilestones = milestones.filter((m) => m.projectId === project.id);
-  const projectReports = reports.filter((r) => r.projectId === project.id);
+  useEffect(() => {
+    loadProjectData();
+
+    return () => {
+      leaveProjectRoom(projectId);
+    };
+  }, [projectId]);
+
+  useEffect(() => {
+    if (projectId) {
+      joinProjectRoom(projectId);
+    }
+  }, [projectId]);
+
+  const loadProjectData = async () => {
+    try {
+      setLoading(true);
+      const [projectData, milestonesData, reportsData, documentsData] = await Promise.all([
+        projectService.getProjectById(projectId),
+        milestoneService.getMilestones(projectId),
+        reportService.getProjectReports(projectId),
+        documentService.getProjectDocuments(projectId),
+      ]);
+      setProject(projectData.project);
+      setMilestones(milestonesData.milestones || []);
+      setReports(reportsData.reports || []);
+      setDocuments(documentsData.documents || []);
+    } catch (err: any) {
+      console.error('Failed to load project:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const statusBadge = (status: string) => {
+    switch (status) {
+      case 'Completed': return 'bg-emerald-50 text-emerald-700 border-emerald-200';
+      case 'Rejected': return 'bg-rose-50 text-rose-700 border-rose-200';
+      case 'Approved':
+      case 'In Progress': return 'bg-blue-50 text-blue-700 border-blue-200';
+      default: return 'bg-amber-50 text-amber-700 border-amber-200';
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <Loader2 className="w-8 h-8 animate-spin text-orange-500" />
+      </div>
+    );
+  }
+
+  if (!project) {
+    return (
+      <div className="bg-white p-12 rounded-2xl border border-gray-100 text-center">
+        <p className="text-gray-500">Project not found</p>
+        <button onClick={onBack} className="mt-4 text-orange-600 font-semibold">Go Back</button>
+      </div>
+    );
+  }
+
+  const avgProgress = milestones.length > 0
+    ? Math.round(milestones.reduce((acc, m) => acc + (m.completionRate || 0), 0) / milestones.length)
+    : 0;
 
   return (
     <div className="space-y-6 animate-fadeIn">
-      {/* 1. Top Header with Back Navigation */}
+      {/* Header */}
       <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-center gap-3">
           <button
             onClick={onBack}
             className="p-2 rounded-xl text-gray-400 hover:text-gray-900 hover:bg-gray-100 transition"
-            title="Back to all projects"
           >
             <ArrowLeft size={20} />
           </button>
           <div>
             <div className="flex items-center gap-2">
-              <span className="text-xs font-bold text-orange-600 bg-orange-50 px-2.5 py-0.5 rounded-md">
-                {project.code}
+              <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${statusBadge(project.status)}`}>
+                {project.status}
               </span>
               <h1 className="text-xl sm:text-2xl font-extrabold text-gray-900">
-                {project.name}
+                {project.title}
               </h1>
             </div>
             <p className="text-xs text-gray-500 mt-1 flex items-center gap-2">
               <MapPin size={13} className="text-gray-400" />
               <span>{project.location}</span>
-              <span>•</span>
-              <span className="font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full text-[10px]">
-                Verified Site
-              </span>
             </p>
           </div>
         </div>
 
-        {/* Tab Navigation Pill Bar (Matching Screen 8 Tabs) */}
         <div className="flex items-center gap-1 bg-gray-100/80 p-1.5 rounded-2xl overflow-x-auto">
           {[
             { id: 'overview', label: 'Overview', icon: Building },
             { id: 'milestones', label: 'Milestones', icon: Layers },
             { id: 'reports', label: 'Reports', icon: FileText },
-            { id: 'team', label: 'Team', icon: UsersIcon },
-            { id: 'finance', label: 'Finance', icon: PieChart },
+            { id: 'documents', label: 'Documents', icon: FileText },
           ].map((tab) => {
             const Icon = tab.icon;
             const isActive = activeSubTab === tab.id;
@@ -102,271 +201,130 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
         </div>
       </div>
 
-      {/* 2. OVERVIEW TAB CONTENT (Screen 8) */}
+      {/* Overview */}
       {activeSubTab === 'overview' && (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-fadeIn">
-          {/* Left Column: Progress Ring & Specs */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2 space-y-6">
-            {/* Overall Progress Widget */}
             <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm">
-              <div className="flex flex-col sm:flex-row items-center gap-8">
-                {/* SVG Progress Circle */}
-                <div className="relative w-36 h-36 flex-shrink-0 flex items-center justify-center">
-                  <svg className="w-full h-full transform -rotate-90" viewBox="0 0 100 100">
-                    <circle
-                      cx="50"
-                      cy="50"
-                      r="40"
-                      stroke="#f3f4f6"
-                      strokeWidth="10"
-                      fill="transparent"
-                    />
-                    <circle
-                      cx="50"
-                      cy="50"
-                      r="40"
-                      stroke="#f97316"
-                      strokeWidth="10"
-                      fill="transparent"
-                      strokeDasharray="251.2"
-                      strokeDashoffset={251.2 - (251.2 * project.progress) / 100}
-                      strokeLinecap="round"
-                      className="transition-all duration-1000 ease-out"
-                    />
-                  </svg>
-                  <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
-                    <span className="text-3xl font-extrabold text-gray-900">{project.progress}%</span>
-                    <span className="text-[10px] font-bold text-gray-400 uppercase">Progress</span>
-                  </div>
-                </div>
-
-                {/* Progress Details */}
-                <div className="space-y-3 flex-1 text-center sm:text-left">
-                  <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 text-xs font-semibold">
-                    <ShieldCheck size={14} /> On Schedule & Inspected
-                  </div>
-                  <h3 className="text-lg font-bold text-gray-900">
-                    {project.name}
-                  </h3>
-                  <p className="text-xs text-gray-600 leading-relaxed">
-                    {project.description}
-                  </p>
-                  <div className="flex flex-wrap gap-4 text-xs text-gray-500 pt-1 justify-center sm:justify-start">
-                    <div className="flex items-center gap-1">
-                      <Clock size={14} className="text-orange-500" />
-                      <span>Roofing phase in progress</span>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <Calendar size={14} className="text-blue-500" />
-                      <span>Target: {project.expectedEndDate}</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Specifications Grid */}
-            <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm">
-              <h3 className="text-base font-bold text-gray-900 mb-4">
-                Project Parameters & Metadata
-              </h3>
+              <h3 className="text-base font-bold text-gray-900 mb-4">Project Details</h3>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
                 <div className="p-3.5 bg-gray-50/80 rounded-xl border border-gray-100">
                   <div className="text-[10px] text-gray-400 font-bold uppercase">Start Date</div>
-                  <div className="text-xs sm:text-sm font-bold text-gray-900 mt-1">{project.startDate}</div>
-                </div>
-
-                <div className="p-3.5 bg-gray-50/80 rounded-xl border border-gray-100">
-                  <div className="text-[10px] text-gray-400 font-bold uppercase">Expected End Date</div>
-                  <div className="text-xs sm:text-sm font-bold text-gray-900 mt-1">{project.expectedEndDate}</div>
-                </div>
-
-                <div className="p-3.5 bg-gray-50/80 rounded-xl border border-gray-100">
-                  <div className="text-[10px] text-gray-400 font-bold uppercase">Total Budget</div>
-                  <div className="text-xs sm:text-sm font-bold text-emerald-600 mt-1">
-                    ${project.budget.toLocaleString()}
+                  <div className="text-xs sm:text-sm font-bold text-gray-900 mt-1">
+                    {project.startDate ? new Date(project.startDate).toLocaleDateString() : 'N/A'}
                   </div>
                 </div>
-
                 <div className="p-3.5 bg-gray-50/80 rounded-xl border border-gray-100">
-                  <div className="text-[10px] text-gray-400 font-bold uppercase">Location</div>
-                  <div className="text-xs sm:text-sm font-bold text-gray-900 mt-1">{project.location}</div>
+                  <div className="text-[10px] text-gray-400 font-bold uppercase">Budget</div>
+                  <div className="text-xs sm:text-sm font-bold text-emerald-600 mt-1">
+                    {convert(Number(project.budget))}
+                  </div>
                 </div>
-
                 <div className="p-3.5 bg-gray-50/80 rounded-xl border border-gray-100">
-                  <div className="text-[10px] text-gray-400 font-bold uppercase">Project Type</div>
-                  <div className="text-xs sm:text-sm font-bold text-gray-900 mt-1">{project.type}</div>
+                  <div className="text-[10px] text-gray-400 font-bold uppercase">Progress</div>
+                  <div className="text-xs sm:text-sm font-bold text-gray-900 mt-1">{avgProgress}%</div>
                 </div>
-
-                <div className="p-3.5 bg-gray-50/80 rounded-xl border border-gray-100">
-                  <div className="text-[10px] text-gray-400 font-bold uppercase">Project Manager</div>
-                  <div className="text-xs sm:text-sm font-bold text-gray-900 mt-1">{project.projectManager}</div>
+                <div className="p-3.5 bg-gray-50/80 rounded-xl border border-gray-100 col-span-2 sm:col-span-3">
+                  <div className="text-[10px] text-gray-400 font-bold uppercase">Description</div>
+                  <div className="text-xs sm:text-sm text-gray-700 mt-1">{project.description || 'No description'}</div>
                 </div>
               </div>
             </div>
           </div>
 
-          {/* Right Column: Site Photos Gallery & Recent Updates */}
           <div className="space-y-6">
             <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm">
-              <h3 className="text-base font-bold text-gray-900 mb-3">
-                Verified Photo Evidence
-              </h3>
-              <div className="grid grid-cols-2 gap-2.5">
-                {[
-                  'https://images.unsplash.com/photo-1541888946425-d0fbb1861593?q=80&w=400&auto=format&fit=crop',
-                  'https://images.unsplash.com/photo-1590381105924-c72589b9ef3f?q=80&w=400&auto=format&fit=crop',
-                  'https://images.unsplash.com/photo-1581094794329-c8112a89af12?q=80&w=400&auto=format&fit=crop',
-                  'https://images.unsplash.com/photo-1504307651254-35680f356dfd?q=80&w=400&auto=format&fit=crop',
-                ].map((img, i) => (
-                  <div key={i} className="relative rounded-xl overflow-hidden aspect-video bg-gray-100 group">
-                    <img
-                      src={img}
-                      alt="Evidence"
-                      className="w-full h-full object-cover group-hover:scale-110 transition duration-300"
-                    />
-                    <span className="absolute bottom-1 right-1 bg-black/60 backdrop-blur-sm text-white text-[9px] font-semibold px-1.5 py-0.5 rounded">
-                      GPS Verified
+              <h3 className="text-base font-bold text-gray-900 mb-3">Quick Stats</h3>
+              <div className="space-y-3">
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-500">Milestones</span>
+                  <span className="font-bold text-gray-900">{milestones.length}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-500">Reports</span>
+                  <span className="font-bold text-gray-900">{reports.length}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-500">Documents</span>
+                  <span className="font-bold text-gray-900">{documents.length}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Milestones */}
+      {activeSubTab === 'milestones' && (
+        <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm">
+          <h2 className="text-lg font-bold text-gray-900 mb-4">Milestones</h2>
+          {milestones.length === 0 ? (
+            <p className="text-gray-500 text-sm">No milestones yet</p>
+          ) : (
+            <div className="space-y-3">
+              {milestones.map((m) => (
+                <div key={m.id} className="p-4 rounded-xl border border-gray-100 flex items-center justify-between">
+                  <div>
+                    <div className="text-sm font-bold text-gray-900">{m.label}</div>
+                    <div className="text-xs text-gray-500 mt-0.5">
+                      {m.plannedDate ? new Date(m.plannedDate).toLocaleDateString() : 'No date'}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <span className="text-xs font-bold text-gray-700">{m.completionRate}%</span>
+                    <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold border ${statusBadge(m.status)}`}>
+                      {m.status}
                     </span>
                   </div>
-                ))}
-              </div>
-              <button
-                onClick={() => setActiveSubTab('reports')}
-                className="w-full mt-4 py-2 rounded-xl bg-gray-50 hover:bg-gray-100 text-gray-700 text-xs font-bold text-center transition"
-              >
-                View all 36 site photos
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* 3. MILESTONES TAB (Delegates to project milestones) */}
-      {activeSubTab === 'milestones' && (
-        <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm animate-fadeIn">
-          <div className="flex items-center justify-between mb-6">
-            <div>
-              <h2 className="text-lg font-bold text-gray-900">Project Milestones & Timeline</h2>
-              <p className="text-xs text-gray-500">Track each construction phase and verified inspection dates</p>
-            </div>
-            <button
-              onClick={() => onNavigateTab('milestones')}
-              className="px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-xl text-xs font-bold shadow-md shadow-orange-500/20"
-            >
-              Open Full Milestones View
-            </button>
-          </div>
-
-          <div className="relative pl-6 space-y-6 before:absolute before:left-2.5 before:top-3 before:bottom-3 before:w-0.5 before:bg-gray-200">
-            {projectMilestones.map((m) => (
-              <div key={m.id} className="relative flex items-start justify-between gap-4">
-                <span
-                  className={`absolute -left-6 top-1 w-3.5 h-3.5 rounded-full ring-4 ring-white ${
-                    m.status === 'Completed'
-                      ? 'bg-emerald-500'
-                      : m.status === 'In Progress'
-                      ? 'bg-orange-500 animate-pulse'
-                      : 'bg-gray-300'
-                  }`}
-                />
-                <div>
-                  <div className="text-sm font-bold text-gray-900">{m.title}</div>
-                  <div className="text-xs text-gray-500 mt-0.5">{m.date || 'Pending start'}</div>
                 </div>
-                <span
-                  className={`px-3 py-1 rounded-full text-xs font-bold ${
-                    m.status === 'Completed'
-                      ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                      : m.status === 'In Progress'
-                      ? 'bg-orange-50 text-orange-700 border border-orange-200'
-                      : 'bg-gray-100 text-gray-500'
-                  }`}
-                >
-                  {m.status}
-                </span>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
-      {/* 4. REPORTS TAB */}
+      {/* Reports */}
       {activeSubTab === 'reports' && (
-        <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm animate-fadeIn space-y-4">
-          <div className="flex items-center justify-between mb-2">
-            <h2 className="text-lg font-bold text-gray-900">Verified Site Reports</h2>
-            <button
-              onClick={() => onNavigateTab('reports')}
-              className="px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-xl text-xs font-bold"
-            >
-              View All Reports
-            </button>
-          </div>
-
-          {projectReports.map((r) => (
-            <div key={r.id} className="p-4 rounded-xl border border-gray-100 bg-gray-50/50 space-y-3">
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="text-sm font-bold text-gray-900">{r.title}</div>
-                  <div className="text-xs text-gray-500">{r.date} • By {r.author} ({r.authorRole})</div>
+        <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm">
+          <h2 className="text-lg font-bold text-gray-900 mb-4">Progress Reports</h2>
+          {reports.length === 0 ? (
+            <p className="text-gray-500 text-sm">No reports yet</p>
+          ) : (
+            <div className="space-y-3">
+              {reports.map((r) => (
+                <div key={r.id} className="p-4 rounded-xl border border-gray-100 bg-gray-50/50">
+                  <div className="text-sm font-bold text-gray-900">{r.summary.slice(0, 100)}...</div>
+                  <div className="text-xs text-gray-500 mt-1">
+                    {new Date(r.generatedAt).toLocaleString()}
+                  </div>
                 </div>
-                <span className="bg-emerald-100 text-emerald-800 font-bold text-xs px-2.5 py-0.5 rounded-full flex items-center gap-1">
-                  <ShieldCheck size={12} /> Verified
-                </span>
-              </div>
-              <p className="text-xs text-gray-600 leading-relaxed">{r.notes}</p>
-              <div className="flex gap-2 overflow-x-auto py-1">
-                {r.images.map((img, i) => (
-                  <img key={i} src={img} alt="Evidence" className="h-16 w-24 rounded-lg object-cover flex-shrink-0" />
-                ))}
-              </div>
+              ))}
             </div>
-          ))}
+          )}
         </div>
       )}
 
-      {/* 5. TEAM TAB */}
-      {activeSubTab === 'team' && (
-        <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm animate-fadeIn space-y-4">
-          <h2 className="text-lg font-bold text-gray-900">Project Personnel & Engineers</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {team.map((t) => (
-              <div key={t.id} className="p-4 rounded-xl border border-gray-100 flex items-center gap-3">
-                <div className="w-12 h-12 rounded-xl bg-orange-100 text-orange-600 font-bold flex items-center justify-center overflow-hidden flex-shrink-0">
-                  <img src={t.avatar} alt={t.name} className="w-full h-full object-cover" />
+      {/* Documents */}
+      {activeSubTab === 'documents' && (
+        <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm">
+          <h2 className="text-lg font-bold text-gray-900 mb-4">Documents</h2>
+          {documents.length === 0 ? (
+            <p className="text-gray-500 text-sm">No documents uploaded yet</p>
+          ) : (
+            <div className="space-y-3">
+              {documents.map((d) => (
+                <div key={d.id} className="p-4 rounded-xl border border-gray-100 flex items-center justify-between">
+                  <div>
+                    <div className="text-sm font-bold text-gray-900">{d.fileName}</div>
+                    <div className="text-xs text-gray-500 mt-0.5">{d.category} • {new Date(d.uploadedAt).toLocaleDateString()}</div>
+                  </div>
+                  <a href={d.fileUrl} target="_blank" rel="noreferrer" className="text-xs font-bold text-orange-600 hover:text-orange-700">
+                    Download
+                  </a>
                 </div>
-                <div>
-                  <div className="text-sm font-bold text-gray-900">{t.name}</div>
-                  <div className="text-xs text-orange-600 font-semibold">{t.role}</div>
-                  <div className="text-[11px] text-gray-500">{t.phone}</div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* 6. FINANCE TAB */}
-      {activeSubTab === 'finance' && (
-        <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm animate-fadeIn space-y-5">
-          <h2 className="text-lg font-bold text-gray-900">Financial Snapshot</h2>
-          <div className="grid grid-cols-3 gap-4">
-            <div className="p-4 bg-gray-50 rounded-xl border border-gray-100">
-              <div className="text-xs text-gray-500 font-semibold">Total Budget</div>
-              <div className="text-lg font-bold text-gray-900 mt-1">${project.budget.toLocaleString()}</div>
+              ))}
             </div>
-            <div className="p-4 bg-orange-50 rounded-xl border border-orange-100">
-              <div className="text-xs text-orange-700 font-semibold">Spent (65%)</div>
-              <div className="text-lg font-bold text-orange-600 mt-1">${project.spent.toLocaleString()}</div>
-            </div>
-            <div className="p-4 bg-emerald-50 rounded-xl border border-emerald-100">
-              <div className="text-xs text-emerald-700 font-semibold">Remaining</div>
-              <div className="text-lg font-bold text-emerald-600 mt-1">
-                ${(project.budget - project.spent).toLocaleString()}
-              </div>
-            </div>
-          </div>
+          )}
         </div>
       )}
     </div>

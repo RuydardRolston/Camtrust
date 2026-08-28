@@ -1,69 +1,126 @@
 /**
- * CamTrust - Milestones & Timeline View (Screen 9)
- * Matches reference poster: Header with "+ Add Milestone" button, interactive milestone checklist, and timeline.
+ * CamTrust - Milestones View
+ * Real database-backed milestones list.
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
-  Plus,
-  CheckCircle2,
-  Clock,
-  Circle,
-  Calendar,
   Layers,
-  X
+  Plus,
+  Loader2
 } from 'lucide-react';
-import { MilestoneItem } from '../../utils/dashboardData';
+import milestoneService from '../../services/milestoneService';
+import projectService from '../../services/projectService';
 
-export interface MilestonesViewProps {
-  milestones: MilestoneItem[];
-  onAddMilestone: (newMilestone: Omit<MilestoneItem, 'id'>) => void;
-  onToggleMilestoneStatus: (id: string) => void;
+export interface Milestone {
+  id: number;
+  projectId: number;
+  label: string;
+  plannedDate: string;
+  completionRate: number;
+  status: string;
 }
 
-export const MilestonesView: React.FC<MilestonesViewProps> = ({
-  milestones,
-  onAddMilestone,
-  onToggleMilestoneStatus,
-}) => {
+export interface Project {
+  id: number;
+  title: string;
+  location: string;
+}
+
+export const MilestonesView: React.FC = () => {
+  const [milestones, setMilestones] = useState<Milestone[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [selectedProjectId, setSelectedProjectId] = useState<number>(0);
+  const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [title, setTitle] = useState('');
-  const [date, setDate] = useState('');
+  const [newLabel, setNewLabel] = useState('');
+  const [newDate, setNewDate] = useState('');
 
-  const completedCount = milestones.filter((m) => m.status === 'Completed').length;
-  const inProgressCount = milestones.filter((m) => m.status === 'In Progress').length;
-  const pendingCount = milestones.filter((m) => m.status === 'Pending').length;
+  useEffect(() => {
+    loadData();
+  }, []);
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!title) return;
+  useEffect(() => {
+    if (selectedProjectId) {
+      loadMilestones(selectedProjectId);
+    }
+  }, [selectedProjectId]);
 
-    onAddMilestone({
-      projectId: '1',
-      title,
-      date: date || 'Estimated ' + new Date().toLocaleDateString('en-GB', { month: 'short', year: 'numeric' }),
-      status: 'Pending',
-      progress: 0,
-    });
-
-    setTitle('');
-    setDate('');
-    setIsModalOpen(false);
+  const loadData = async () => {
+    try {
+      setLoading(true);
+      const [projectsData, milestonesData] = await Promise.all([
+        projectService.getMyProjects(),
+        milestoneService.getMyMilestones(),
+      ]);
+      setProjects(projectsData.projects || []);
+      const ms = milestonesData.milestones || [];
+      setMilestones(ms);
+      if (projectsData.projects?.length > 0 && !selectedProjectId) {
+        setSelectedProjectId(projectsData.projects[0].id);
+      }
+    } catch (err) {
+      console.error('Failed to load milestones:', err);
+    } finally {
+      setLoading(false);
+    }
   };
+
+  const loadMilestones = async (projectId: number) => {
+    try {
+      const data = await milestoneService.getMilestones(projectId);
+      setMilestones(data.milestones || []);
+    } catch (err) {
+      console.error('Failed to load milestones:', err);
+    }
+  };
+
+  const handleCreate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newLabel || !selectedProjectId) return;
+
+    try {
+      await milestoneService.createMilestone({
+        projectId: selectedProjectId,
+        label: newLabel,
+        plannedDate: newDate,
+        completionRate: 0,
+        status: 'Pending',
+      });
+      setIsModalOpen(false);
+      setNewLabel('');
+      setNewDate('');
+      await loadMilestones(selectedProjectId);
+    } catch (err: any) {
+      alert(err.message || 'Failed to create milestone');
+    }
+  };
+
+  const statusBadge = (status: string) => {
+    switch (status) {
+      case 'Completed': return 'bg-emerald-50 text-emerald-700 border-emerald-200';
+      case 'In Progress': return 'bg-blue-50 text-blue-700 border-blue-200';
+      default: return 'bg-gray-100 text-gray-600 border-gray-200';
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <Loader2 className="w-8 h-8 animate-spin text-orange-500" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 animate-fadeIn">
-      {/* 1. Header Bar with "+ Add Milestone" */}
       <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2">
-            <Layers className="text-orange-500" size={22} />
-            <h1 className="text-xl sm:text-2xl font-extrabold text-gray-900 tracking-tight">
-              Milestones / Timeline
-            </h1>
-          </div>
+          <h1 className="text-xl sm:text-2xl font-extrabold text-gray-900 tracking-tight">
+            Milestones
+          </h1>
           <p className="text-xs sm:text-sm text-gray-500 mt-1">
-            Track key phases of construction from land preparation to final handover.
+            Track construction phases and completion
           </p>
         </div>
 
@@ -72,156 +129,94 @@ export const MilestonesView: React.FC<MilestonesViewProps> = ({
           className="inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-orange-500 hover:bg-orange-600 text-white font-bold text-sm rounded-xl shadow-lg shadow-orange-500/25 transition"
         >
           <Plus size={18} />
-          <span>Add Milestone</span>
+          <span>New Milestone</span>
         </button>
       </div>
 
-      {/* 2. Stat Counts */}
-      <div className="grid grid-cols-3 gap-4">
-        <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm text-center">
-          <div className="text-2xl font-extrabold text-emerald-600">{completedCount}</div>
-          <div className="text-xs text-gray-500 font-semibold mt-0.5">Completed Phases</div>
-        </div>
-        <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm text-center">
-          <div className="text-2xl font-extrabold text-orange-500">{inProgressCount}</div>
-          <div className="text-xs text-gray-500 font-semibold mt-0.5">In Progress</div>
-        </div>
-        <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm text-center">
-          <div className="text-2xl font-extrabold text-gray-400">{pendingCount}</div>
-          <div className="text-xs text-gray-500 font-semibold mt-0.5">Upcoming Pending</div>
-        </div>
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+        {milestones.length === 0 ? (
+          <div className="p-12 text-center">
+            <p className="text-gray-500 text-sm">No milestones yet</p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm">
+              <thead className="bg-gray-50/80 text-[11px] font-bold text-gray-500 uppercase tracking-wider border-b border-gray-100">
+                <tr>
+                  <th className="py-3.5 px-5">Label</th>
+                  <th className="py-3.5 px-5">Project</th>
+                  <th className="py-3.5 px-5">Planned Date</th>
+                  <th className="py-3.5 px-5">Progress</th>
+                  <th className="py-3.5 px-5">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100 font-medium">
+                {milestones.map((m) => {
+                  const project = projects.find((p) => p.id === m.projectId);
+                  return (
+                    <tr key={m.id} className="hover:bg-gray-50/60 transition">
+                      <td className="py-3.5 px-5 font-bold text-gray-900">{m.label}</td>
+                      <td className="py-3.5 px-5 text-gray-700">{project?.title || 'Unknown'}</td>
+                      <td className="py-3.5 px-5 text-gray-700">
+                        {m.plannedDate ? new Date(m.plannedDate).toLocaleDateString() : 'N/A'}
+                      </td>
+                      <td className="py-3.5 px-5">
+                        <div className="flex items-center gap-3">
+                          <div className="w-24 bg-gray-100 h-2 rounded-full overflow-hidden">
+                            <div
+                              className={`h-full rounded-full ${
+                                m.completionRate >= 70 ? 'bg-orange-500' : m.completionRate >= 40 ? 'bg-amber-500' : 'bg-rose-500'
+                              }`}
+                              style={{ width: `${m.completionRate}%` }}
+                            />
+                          </div>
+                          <span className="font-bold text-gray-900 text-xs">{m.completionRate}%</span>
+                        </div>
+                      </td>
+                      <td className="py-3.5 px-5">
+                        <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold border ${statusBadge(m.status)}`}>
+                          {m.status}
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
-      {/* 3. Timeline Cards Container (Matching Screen 9) */}
-      <div className="bg-white rounded-2xl border border-gray-100 p-6 sm:p-8 shadow-sm">
-        <div className="relative pl-6 sm:pl-8 space-y-6 before:absolute before:left-3 sm:before:left-4 before:top-4 before:bottom-4 before:w-0.5 before:bg-gray-200">
-          {milestones.map((m) => {
-            const isCompleted = m.status === 'Completed';
-            const isInProgress = m.status === 'In Progress';
-
-            return (
-              <div
-                key={m.id}
-                className="relative flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-xl border border-gray-100 bg-white hover:bg-gray-50/50 transition group"
-              >
-                {/* Timeline Dot Icon */}
-                <div
-                  onClick={() => onToggleMilestoneStatus(m.id)}
-                  className={`absolute -left-7 sm:-left-9 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full ring-4 ring-white flex items-center justify-center cursor-pointer transition ${
-                    isCompleted
-                      ? 'bg-emerald-500 text-white'
-                      : isInProgress
-                      ? 'bg-orange-500 text-white animate-pulse'
-                      : 'bg-gray-200 text-gray-400'
-                  }`}
-                  title="Click to toggle status"
-                >
-                  {isCompleted ? (
-                    <CheckCircle2 size={14} className="stroke-[3]" />
-                  ) : isInProgress ? (
-                    <Clock size={13} className="stroke-[3]" />
-                  ) : (
-                    <Circle size={10} />
-                  )}
-                </div>
-
-                {/* Title & Date */}
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2">
-                    <h3 className="font-bold text-sm sm:text-base text-gray-900">
-                      {m.title}
-                    </h3>
-                  </div>
-                  <div className="text-xs text-gray-500 flex items-center gap-2">
-                    <Calendar size={12} className="text-gray-400" />
-                    <span>{m.date || 'Pending'}</span>
-                  </div>
-                </div>
-
-                {/* Status & Action */}
-                <div className="flex items-center gap-3">
-                  <span
-                    className={`px-3 py-1 rounded-full text-xs font-bold ${
-                      isCompleted
-                        ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                        : isInProgress
-                        ? 'bg-orange-50 text-orange-700 border border-orange-200'
-                        : 'bg-gray-100 text-gray-500'
-                    }`}
-                  >
-                    {m.status}
-                  </span>
-
-                  <button
-                    onClick={() => onToggleMilestoneStatus(m.id)}
-                    className="text-xs text-gray-400 hover:text-orange-600 font-semibold px-2 py-1 rounded hover:bg-orange-50 transition"
-                  >
-                    Toggle
-                  </button>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* 4. Add Milestone Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-md w-full p-6 sm:p-8 shadow-2xl border border-gray-100 animate-fadeIn relative">
-            <button
-              onClick={() => setIsModalOpen(false)}
-              className="absolute top-5 right-5 p-1.5 rounded-xl text-gray-400 hover:text-gray-600 hover:bg-gray-100"
-            >
-              <X size={20} />
-            </button>
-
-            <h2 className="text-xl font-bold text-gray-900">Add Project Milestone</h2>
-            <p className="text-xs text-gray-500 mt-1">
-              Create a new progress milestone for engineers to track and submit photo proof.
-            </p>
-
-            <form onSubmit={handleSubmit} className="space-y-4 mt-5">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl">
+            <h3 className="text-lg font-bold text-gray-900 mb-4">New Milestone</h3>
+            <form onSubmit={handleCreate} className="space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">
-                  Milestone Name *
-                </label>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">Label</label>
                 <input
                   type="text"
+                  value={newLabel}
+                  onChange={(e) => setNewLabel(e.target.value)}
+                  className="w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-sm"
                   required
-                  placeholder="e.g. Roof Truss Installation"
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  className="w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500"
                 />
               </div>
-
               <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">
-                  Estimated Target Date
-                </label>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">Planned Date</label>
                 <input
-                  type="text"
-                  placeholder="e.g. 15 Jul 2025"
-                  value={date}
-                  onChange={(e) => setDate(e.target.value)}
-                  className="w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500"
+                  type="date"
+                  value={newDate}
+                  onChange={(e) => setNewDate(e.target.value)}
+                  className="w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-sm"
                 />
               </div>
-
-              <div className="flex items-center justify-end gap-3 pt-3">
-                <button
-                  type="button"
-                  onClick={() => setIsModalOpen(false)}
-                  className="px-4 py-2.5 rounded-xl border border-gray-200 text-xs font-semibold text-gray-600 hover:bg-gray-50"
-                >
+              <div className="flex justify-end gap-3">
+                <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2 rounded-xl border border-gray-200 text-xs font-semibold">
                   Cancel
                 </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2.5 rounded-xl bg-orange-500 hover:bg-orange-600 text-white text-xs font-bold shadow-md shadow-orange-500/25"
-                >
-                  Save Milestone
+                <button type="submit" className="px-5 py-2 rounded-xl bg-orange-500 text-white text-xs font-bold">
+                  Create
                 </button>
               </div>
             </form>
