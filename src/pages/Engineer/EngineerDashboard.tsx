@@ -10,10 +10,15 @@ import {
   ArrowRight,
   MapPin,
   Calendar,
-  Loader2
+  Loader2,
+  ShieldCheck,
+  UserCheck,
+  UserX
 } from 'lucide-react';
+import useAuth from '../../hooks/useAuth';
 import assignmentService from '../../services/assignmentService';
 import projectService from '../../services/projectService';
+import verificationService from '../../services/verificationService';
 
 export interface Project {
   id: number;
@@ -34,12 +39,49 @@ export const EngineerDashboard: React.FC<EngineerDashboardProps> = ({
   onSelectProject,
   onNavigateTab,
 }) => {
+  const { user } = useAuth();
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
+  const [verificationStatus, setVerificationStatus] = useState<string | null>(null);
+  const [requestingVerification, setRequestingVerification] = useState(false);
 
   useEffect(() => {
     loadProjects();
-  }, []);
+    if (user) {
+      loadVerificationStatus();
+    }
+  }, [user]);
+
+  const loadVerificationStatus = async () => {
+    try {
+      const data = await verificationService.getPendingVerifications();
+      const myVerification = (data.verifications || []).find(
+        (v: any) => v.professionalId === user?.id
+      );
+      if (myVerification) {
+        setVerificationStatus(myVerification.status);
+      } else if (user?.verified) {
+        setVerificationStatus('Approved');
+      } else {
+        setVerificationStatus('none');
+      }
+    } catch {
+      // ignore
+    }
+  };
+
+  const handleRequestVerification = async () => {
+    try {
+      setRequestingVerification(true);
+      await verificationService.requestVerification();
+      setVerificationStatus('Pending');
+      alert('Verification request submitted successfully');
+    } catch (err: any) {
+      alert(err.message || 'Failed to submit verification request');
+    } finally {
+      setRequestingVerification(false);
+    }
+  };
 
   const loadProjects = async () => {
     try {
@@ -87,6 +129,25 @@ export const EngineerDashboard: React.FC<EngineerDashboardProps> = ({
               <UploadCloud size={16} />
               <span>Submit Progress Update</span>
             </button>
+
+            {verificationStatus === 'Approved' ? (
+              <span className="inline-flex items-center gap-1.5 px-3 py-2 bg-emerald-100 text-emerald-800 font-bold text-xs rounded-xl border border-emerald-200">
+                <ShieldCheck size={14} /> Verified Engineer
+              </span>
+            ) : verificationStatus === 'Pending' ? (
+              <span className="inline-flex items-center gap-1.5 px-3 py-2 bg-amber-100 text-amber-800 font-bold text-xs rounded-xl border border-amber-200">
+                <UserCheck size={14} /> Verification Pending
+              </span>
+            ) : (
+              <button
+                onClick={handleRequestVerification}
+                disabled={requestingVerification}
+                className="px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs sm:text-sm rounded-xl shadow-md flex items-center gap-2 transition disabled:opacity-50"
+              >
+                <UserX size={16} />
+                <span>{requestingVerification ? 'Submitting...' : 'Request Verification'}</span>
+              </button>
+            )}
           </div>
         </div>
       </div>

@@ -3,13 +3,13 @@
  * Real database-backed notifications list.
  */
 
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import {
   Bell,
   CheckCircle2,
   Loader2
 } from 'lucide-react';
-import notificationService from '../../services/notificationService';
+import { useNotifications } from '../../context/NotificationContext';
 
 export interface Notification {
   id: number;
@@ -20,36 +20,13 @@ export interface Notification {
 }
 
 export const NotificationsView: React.FC = () => {
-  const [notifications, setNotifications] = useState<Notification[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    loadNotifications();
-  }, []);
-
-  const loadNotifications = async () => {
-    try {
-      const data = await notificationService.getMyNotifications();
-      setNotifications(data.notifications || []);
-    } catch (err) {
-      console.error('Failed to load notifications:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleMarkRead = async (id: number) => {
-    try {
-      await notificationService.markNotificationRead(id);
-      setNotifications((prev) =>
-        prev.map((n) => (n.id === id ? { ...n, status: 'read' } : n))
-      );
-    } catch (err) {
-      console.error('Failed to mark notification read:', err);
-    }
-  };
+  const { notifications, loading, markRead } = useNotifications();
 
   const unreadCount = notifications.filter((n) => n.status === 'unread').length;
+
+  const handleMarkRead = async (id: number) => {
+    await markRead(id);
+  };
 
   if (loading) {
     return (

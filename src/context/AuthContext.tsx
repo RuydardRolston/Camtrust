@@ -6,6 +6,7 @@ import { createContext, useState, useEffect, ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import authService from '../services/authService';
 import { User, LoginCredentials, RegisterData, AuthContextType } from '../types';
+import { joinUserRoom } from '../services/socket';
 
 export const AuthContext = createContext<AuthContextType | null>(null);
 
@@ -20,13 +21,19 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
   useEffect(() => {
     const stored = authService.getStoredUser();
-    if (stored) setUser(stored);
+    if (stored) {
+      setUser(stored);
+      joinUserRoom(stored.id);
+    }
     setLoading(false);
   }, []);
 
   const login = async (credentials: LoginCredentials): Promise<User> => {
     const res = await authService.login(credentials);
     setUser(res.user);
+    if (res.user?.id) {
+      joinUserRoom(res.user.id);
+    }
     return res.user;
   };
 

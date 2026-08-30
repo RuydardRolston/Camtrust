@@ -1,6 +1,6 @@
 /**
  * CamTrust - Professionals Verification View
- * Real backend-backed verification list with approve/reject actions.
+ * Admin can review engineer verification requests with uploaded documents.
  */
 
 import React, { useState, useEffect } from 'react';
@@ -11,7 +11,10 @@ import {
   XCircle,
   Award,
   Search,
-  Loader2
+  Loader2,
+  FileText,
+  Download,
+  Upload
 } from 'lucide-react';
 import verificationService from '../../services/verificationService';
 
@@ -25,12 +28,21 @@ export interface Verification {
   };
   status: string;
   date: string;
+  documents?: Array<{
+    id: number;
+    fileName: string;
+    fileUrl: string;
+    documentType: string;
+    uploadedAt: string;
+  }>;
 }
 
 export const ProfessionalsVerificationView: React.FC = () => {
   const [verifications, setVerifications] = useState<Verification[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(true);
+  const [selectedVerification, setSelectedVerification] = useState<Verification | null>(null);
+  const [uploadingDoc, setUploadingDoc] = useState(false);
 
   useEffect(() => {
     loadVerifications();
@@ -39,7 +51,17 @@ export const ProfessionalsVerificationView: React.FC = () => {
   const loadVerifications = async () => {
     try {
       const data = await verificationService.getPendingVerifications();
-      setVerifications(data.verifications || []);
+      const verificationsWithDocs = await Promise.all(
+        (data.verifications || []).map(async (v: Verification) => {
+          try {
+            const docs = await verificationService.getVerificationDocuments(v.id);
+            return { ...v, documents: docs.documents || [] };
+          } catch {
+            return { ...v, documents: [] };
+          }
+        })
+      );
+      setVerifications(verificationsWithDocs);
     } catch (err) {
       console.error('Failed to load verifications:', err);
     } finally {
@@ -51,6 +73,7 @@ export const ProfessionalsVerificationView: React.FC = () => {
     try {
       await verificationService.approveVerification(id);
       await loadVerifications();
+      setSelectedVerification(null);
     } catch (err) {
       alert('Failed to approve verification');
     }
@@ -60,8 +83,28 @@ export const ProfessionalsVerificationView: React.FC = () => {
     try {
       await verificationService.rejectVerification(id);
       await loadVerifications();
+      setSelectedVerification(null);
     } catch (err) {
       alert('Failed to reject verification');
+    }
+  };
+
+  const handleUploadDocument = async (verificationId: number, e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    try {
+      setUploadingDoc(true);
+      const formData = new FormData();
+      formData.append('document', files[0]);
+      formData.append('documentType', 'license');
+
+      await verificationService.uploadVerificationDocument(verificationId, formData);
+      await loadVerifications();
+    } catch (err) {
+      alert('Failed to upload document');
+    } finally {
+      setUploadingDoc(false);
     }
   };
 
@@ -88,7 +131,7 @@ export const ProfessionalsVerificationView: React.FC = () => {
             </h1>
           </div>
           <p className="text-xs sm:text-sm text-gray-500 mt-1">
-            Review and approve qualified professionals for project supervision.
+            Review engineer licenses, certificates, and approve qualified professionals.
           </p>
         </div>
       </div>
@@ -113,12 +156,16 @@ export const ProfessionalsVerificationView: React.FC = () => {
           {filtered.map((a) => (
             <div
               key={a.id}
-              className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm hover:shadow-md transition-all flex flex-col justify-between space-y-4"
+              onClick={() => setSelectedVerification(a)}
+              className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm hover:shadow-md transition-all cursor-pointer flex flex-col justify-between space-y-4"
             >
               <div className="flex items-start justify-between gap-3">
                 <div className="space-y-1">
                   <h3 className="font-bold text-base text-gray-900">{a.professional?.fullName || 'Unknown'}</h3>
                   <div className="text-xs text-gray-500">{a.professional?.email}</div>
+                  <div className="text-[10px] text-gray-400 mt-1">
+                    {new Date(a.date).toLocaleDateString()}
+                  </div>
                 </div>
 
                 <span
@@ -126,7 +173,7 @@ export const ProfessionalsVerificationView: React.FC = () => {
                     a.status === 'Approved'
                       ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                       : a.status === 'Rejected'
-                      ? 'bg-rose-50 text-rose-700 border border-rose-200'
+                       ? 'bg-orange-50 text-orange-700 border border-orange-200'
                       : 'bg-amber-50 text-amber-700 border border-amber-200'
                   }`}
                 >
@@ -136,24 +183,145 @@ export const ProfessionalsVerificationView: React.FC = () => {
                 </span>
               </div>
 
+              {a.documents && a.documents.length > 0 && (
+                <div className="pt-3 border-t border-gray-100 space-y-2">
+                  <div className="text-[10px] font-bold text-gray-500 uppercase">Uploaded Documents</div>
+                  {a.documents.map((doc) => (
+                    <a
+                      key={doc.id}
+                      href={doc.fileUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      onClick={(e) => e.stopPropagation()}
+                      className="flex items-center gap-2 text-xs text-blue-600 hover:text-blue-700"
+                    >
+                      <FileText size={12} />
+                      <span>{doc.fileName}</span>
+                      <span className="text-[10px] text-gray-400">({doc.documentType})</span>
+                    </a>
+                  ))}
+                </div>
+              )}
+
               {a.status === 'Pending' && (
-                <div className="pt-3 border-t border-gray-100 flex items-center justify-end gap-2">
-                  <button
-                    onClick={() => handleReject(a.id)}
-                    className="px-3 py-1.5 rounded-lg border border-rose-200 text-rose-600 hover:bg-rose-50 text-xs font-semibold transition"
-                  >
-                    Reject
-                  </button>
-                  <button
-                    onClick={() => handleApprove(a.id)}
-                    className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-sm transition"
-                  >
-                    Approve
-                  </button>
+                <div className="pt-3 border-t border-gray-100 flex items-center justify-between">
+                  <label className="text-[11px] font-semibold text-gray-500 flex items-center gap-1">
+                    <Upload size={12} />
+                    Add Document
+                  </label>
+                  <input
+                    type="file"
+                    className="hidden"
+                    onChange={(e) => handleUploadDocument(a.id, e)}
+                  />
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={(e) => { e.stopPropagation(); handleReject(a.id); }}
+                      className="px-3 py-1.5 rounded-lg border border-orange-200 text-orange-600 hover:bg-orange-50 text-xs font-semibold transition"
+                    >
+                      Reject
+                    </button>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); handleApprove(a.id); }}
+                      className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-sm transition"
+                    >
+                      Approve
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Detail Modal */}
+      {selectedVerification && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-bold text-gray-900">Verification Details</h3>
+              <button onClick={() => setSelectedVerification(null)} className="p-1.5 rounded-xl text-gray-400 hover:text-gray-600">
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <div className="text-xs font-bold text-gray-500 uppercase">Engineer</div>
+                <div className="text-sm font-bold text-gray-900">{selectedVerification.professional?.fullName}</div>
+                <div className="text-xs text-gray-500">{selectedVerification.professional?.email}</div>
+              </div>
+
+              <div>
+                <div className="text-xs font-bold text-gray-500 uppercase">Status</div>
+                <span className={`px-2.5 py-1 rounded-full text-xs font-bold ${
+                  selectedVerification.status === 'Approved' ? 'bg-emerald-50 text-emerald-700' :
+                  selectedVerification.status === 'Rejected' ? 'bg-orange-50 text-orange-700' :
+                  'bg-amber-50 text-amber-700'
+                }`}>
+                  {selectedVerification.status}
+                </span>
+              </div>
+
+              <div>
+                <div className="text-xs font-bold text-gray-500 uppercase mb-2">Documents</div>
+                {selectedVerification.documents && selectedVerification.documents.length > 0 ? (
+                  <div className="space-y-2">
+                    {selectedVerification.documents.map((doc) => (
+                      <a
+                        key={doc.id}
+                        href={doc.fileUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="flex items-center gap-2 p-3 rounded-xl border border-gray-200 hover:bg-gray-50"
+                      >
+                        <FileText size={16} className="text-orange-500" />
+                        <div>
+                          <div className="text-xs font-bold text-gray-900">{doc.fileName}</div>
+                          <div className="text-[10px] text-gray-500">{doc.documentType}</div>
+                        </div>
+                        <Download size={14} className="ml-auto text-gray-400" />
+                      </a>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-xs text-gray-500">No documents uploaded yet</p>
+                )}
+
+                {selectedVerification.status === 'Pending' && (
+                  <div className="mt-3">
+                    <label className="flex items-center gap-2 px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl cursor-pointer hover:bg-gray-100 transition">
+                      <Upload size={14} className="text-gray-500" />
+                      <span className="text-xs font-semibold text-gray-700">Upload Document</span>
+                      <input
+                        type="file"
+                        className="hidden"
+                        onChange={(e) => handleUploadDocument(selectedVerification.id, e)}
+                      />
+                    </label>
+                  </div>
+                )}
+              </div>
+
+              {selectedVerification.status === 'Pending' && (
+                <div className="flex items-center justify-end gap-3 pt-3 border-t border-gray-100">
+                  <button
+                    onClick={() => handleReject(selectedVerification.id)}
+                    className="px-4 py-2 rounded-xl border border-orange-200 text-orange-600 hover:bg-orange-50 text-xs font-semibold"
+                  >
+                    Reject
+                  </button>
+                  <button
+                    onClick={() => handleApprove(selectedVerification.id)}
+                    className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold"
+                  >
+                    Approve Verification
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       )}
     </div>

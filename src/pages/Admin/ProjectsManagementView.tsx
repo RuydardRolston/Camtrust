@@ -1,6 +1,6 @@
 /**
  * CamTrust - Projects Management View
- * Real database-backed admin projects table with approve/reject actions.
+ * Admin can manage projects and propose engineers to projects.
  */
 
 import React, { useState, useEffect } from 'react';
@@ -10,10 +10,13 @@ import {
   Eye,
   CheckCircle2,
   XCircle,
-  Loader2
+  Loader2,
+  UserPlus,
+  Users
 } from 'lucide-react';
 import projectService from '../../services/projectService';
-import { useCurrency } from '../../context/CurrencyContext';
+import assignmentService from '../../services/assignmentService';
+import userService from '../../services/userService';
 
 export interface Project {
   id: number;
@@ -26,6 +29,14 @@ export interface Project {
   ownerId: number;
 }
 
+export interface Professional {
+  id: number;
+  fullName: string;
+  email: string;
+  role: string;
+  verified: boolean;
+}
+
 export interface ProjectsManagementViewProps {
   onSelectProject: (projectId: string) => void;
 }
@@ -34,23 +45,29 @@ export const ProjectsManagementView: React.FC<ProjectsManagementViewProps> = ({
   onSelectProject,
 }) => {
   const [projects, setProjects] = useState<Project[]>([]);
+  const [professionals, setProfessionals] = useState<Professional[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(true);
   const [rejectingId, setRejectingId] = useState<number | null>(null);
   const [rejectReason, setRejectReason] = useState('');
-  const { convert } = useCurrency();
+  const [proposingProjectId, setProposingProjectId] = useState<number | null>(null);
+  const [selectedProfessionalId, setSelectedProfessionalId] = useState<number>(0);
 
   useEffect(() => {
-    loadProjects();
+    loadData();
   }, []);
 
-  const loadProjects = async () => {
+  const loadData = async () => {
     try {
       setLoading(true);
-      const data = await projectService.getAllProjects();
-      setProjects(data.projects || []);
+      const [projectsData, usersData] = await Promise.all([
+        projectService.getAllProjects(),
+        userService.getAllUsers(),
+      ]);
+      setProjects(projectsData.projects || []);
+      setProfessionals((usersData.users || []).filter((u: any) => u.role === 'professional' && u.verified));
     } catch (err) {
-      console.error('Failed to load projects:', err);
+      console.error('Failed to load data:', err);
     } finally {
       setLoading(false);
     }
@@ -59,7 +76,7 @@ export const ProjectsManagementView: React.FC<ProjectsManagementViewProps> = ({
   const handleApprove = async (id: number) => {
     try {
       await projectService.updateProjectStatus(id, { status: 'Approved' });
-      await loadProjects();
+      await loadData();
     } catch (err) {
       alert('Failed to approve project');
     }
@@ -74,9 +91,21 @@ export const ProjectsManagementView: React.FC<ProjectsManagementViewProps> = ({
       await projectService.updateProjectStatus(id, { status: 'Rejected', rejectionReason: rejectReason });
       setRejectingId(null);
       setRejectReason('');
-      await loadProjects();
+      await loadData();
     } catch (err) {
       alert('Failed to reject project');
+    }
+  };
+
+  const handlePropose = async (projectId: number) => {
+    if (!selectedProfessionalId) return;
+    try {
+      await assignmentService.proposeProfessional(projectId, selectedProfessionalId);
+      setProposingProjectId(null);
+      setSelectedProfessionalId(0);
+      alert('Engineer proposed successfully');
+    } catch (err: any) {
+      alert(err.message || 'Failed to propose engineer');
     }
   };
 
@@ -89,7 +118,7 @@ export const ProjectsManagementView: React.FC<ProjectsManagementViewProps> = ({
   const statusBadge = (status: string) => {
     switch (status) {
       case 'Completed': return 'bg-emerald-50 text-emerald-700 border-emerald-200';
-      case 'Rejected': return 'bg-rose-50 text-rose-700 border-rose-200';
+      case 'Rejected': return 'bg-orange-50 text-orange-700 border-orange-200';
       case 'Approved':
       case 'In Progress': return 'bg-blue-50 text-blue-700 border-blue-200';
       default: return 'bg-amber-50 text-amber-700 border-amber-200';
@@ -115,7 +144,7 @@ export const ProjectsManagementView: React.FC<ProjectsManagementViewProps> = ({
             </h1>
           </div>
           <p className="text-xs sm:text-sm text-gray-500 mt-1">
-            Review and manage all construction projects.
+            Review projects, approve/reject, and propose engineers.
           </p>
         </div>
       </div>
@@ -155,7 +184,7 @@ export const ProjectsManagementView: React.FC<ProjectsManagementViewProps> = ({
                       {p.status}
                     </span>
                   </td>
-                  <td className="py-3.5 px-5 text-gray-700">{convert(Number(p.budget))}</td>
+                  <td className="py-3.5 px-5 text-gray-700">${Number(p.budget).toLocaleString()}</td>
                   <td className="py-3.5 px-5 text-right space-x-2">
                     {p.status === 'Under Review' && (
                       <>
@@ -168,13 +197,29 @@ export const ProjectsManagementView: React.FC<ProjectsManagementViewProps> = ({
                         </button>
                         <button
                           onClick={() => setRejectingId(p.id)}
-                          className="p-1.5 rounded-lg text-rose-600 hover:bg-rose-50 transition"
+                          className="p-1.5 rounded-lg text-orange-600 hover:bg-orange-50 transition"
                           title="Reject"
                         >
                           <XCircle size={16} />
                         </button>
                       </>
                     )}
+                    {p.status === 'Approved' && (
+                      <button
+                        onClick={() => setProposingProjectId(p.id)}
+                        className="p-1.5 rounded-lg text-blue-600 hover:bg-blue-50 transition flex items-center gap-1"
+                        title="Propose Engineer"
+                      >
+                        <UserPlus size={16} />
+                      </button>
+                    )}
+                    <button
+                      onClick={() => onSelectProject(String(p.id))}
+                      className="p-1.5 rounded-lg text-gray-400 hover:text-orange-600 hover:bg-orange-50 transition"
+                      title="View details"
+                    >
+                      <Eye size={16} />
+                    </button>
                   </td>
                 </tr>
               ))}
@@ -199,8 +244,54 @@ export const ProjectsManagementView: React.FC<ProjectsManagementViewProps> = ({
               <button onClick={() => { setRejectingId(null); setRejectReason(''); }} className="px-4 py-2 rounded-xl border border-gray-200 text-xs font-semibold">
                 Cancel
               </button>
-              <button onClick={() => handleReject(rejectingId)} className="px-4 py-2 rounded-xl bg-rose-600 text-white text-xs font-bold">
+                <button onClick={() => handleReject(rejectingId)} className="px-4 py-2 rounded-xl bg-orange-600 text-white text-xs font-bold">
                 Reject
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Propose Engineer Modal */}
+      {proposingProjectId && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl">
+            <h3 className="text-lg font-bold text-gray-900 mb-4">Propose Engineer</h3>
+            <p className="text-xs text-gray-500 mb-4">
+              Select a verified professional to propose for this project. The project owner will be notified and can accept or reject.
+            </p>
+
+            <div className="space-y-2 max-h-60 overflow-y-auto mb-4">
+              {professionals.length === 0 ? (
+                <p className="text-xs text-gray-500 text-center py-4">No verified professionals available</p>
+              ) : (
+                professionals.map((prof) => (
+                  <div
+                    key={prof.id}
+                    onClick={() => setSelectedProfessionalId(prof.id)}
+                    className={`p-3 rounded-xl border cursor-pointer transition ${
+                      selectedProfessionalId === prof.id
+                        ? 'border-blue-500 bg-blue-50'
+                        : 'border-gray-200 hover:bg-gray-50'
+                    }`}
+                  >
+                    <div className="text-sm font-bold text-gray-900">{prof.fullName}</div>
+                    <div className="text-xs text-gray-500">{prof.email}</div>
+                  </div>
+                ))
+              )}
+            </div>
+
+            <div className="flex justify-end gap-3">
+              <button onClick={() => { setProposingProjectId(null); setSelectedProfessionalId(0); }} className="px-4 py-2 rounded-xl border border-gray-200 text-xs font-semibold">
+                Cancel
+              </button>
+              <button
+                onClick={() => handlePropose(proposingProjectId)}
+                disabled={!selectedProfessionalId}
+                className="px-4 py-2 rounded-xl bg-blue-600 text-white text-xs font-bold disabled:opacity-50"
+              >
+                Propose Engineer
               </button>
             </div>
           </div>

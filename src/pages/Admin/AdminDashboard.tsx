@@ -9,12 +9,14 @@ import {
   UserCheck,
   FolderKanban,
   FileText,
+  Camera,
   Clock
 } from 'lucide-react';
 import adminService from '../../services/adminService';
 import projectService from '../../services/projectService';
 import verificationService from '../../services/verificationService';
-import reportService from '../../services/reportService';
+import documentService from '../../services/documentService';
+import evidenceService from '../../services/evidenceService';
 
 export interface AdminDashboardProps {
   onNavigateTab: (tabId: string) => void;
@@ -39,11 +41,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigateTab })
 
   const loadStats = async () => {
     try {
-      const [statsRes, projectsRes, verificationsRes, reportsRes] = await Promise.all([
+      const [statsRes, projectsRes, verificationsRes, documentsRes, evidenceRes] = await Promise.all([
         adminService.getPlatformStats(),
         projectService.getAllProjects(),
         verificationService.getPendingVerifications(),
-        reportService.getAllReports(),
+        documentService.getAllDocuments(),
+        evidenceService.getAllEvidence(),
       ]);
       setStats({
         ...statsRes.stats,
@@ -120,13 +123,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigateTab })
         </div>
 
         <div
-          onClick={() => onNavigateTab('reports')}
+          onClick={() => onNavigateTab('evidence')}
           className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition cursor-pointer group"
         >
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold text-gray-500 uppercase">Evidence</span>
             <div className="w-10 h-10 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center">
-              <FileText size={20} />
+              <Camera size={20} />
             </div>
           </div>
           <div className="text-3xl font-extrabold text-gray-900 mt-3">{stats?.evidenceSubmittedThisWeek || 0}</div>

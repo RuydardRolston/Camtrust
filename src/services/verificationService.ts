@@ -20,6 +20,18 @@ export const verificationService = {
     const response = await api.put(`/verifications/${id}/reject`);
     return response.data;
   },
+
+  uploadVerificationDocument: async (verificationId: string | number, formData: FormData): Promise<any> => {
+    const response = await api.post(`/verifications/${verificationId}/documents`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return response.data;
+  },
+
+  getVerificationDocuments: async (verificationId: string | number): Promise<any[]> => {
+    const response = await api.get(`/verifications/${verificationId}/documents`);
+    return response.data;
+  },
 };
 
 export default verificationService;

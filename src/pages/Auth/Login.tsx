@@ -85,7 +85,7 @@ export const Login: React.FC = () => {
 
   return (
     <AuthLayout>
-      <div className="bg-white p-7 sm:p-9 rounded-[24px] border border-gray-100 shadow-[0_4px_25px_rgba(0,0,0,0.05)] transition-all">
+      <div className="bg-white p-7 sm:p-9 rounded-3xl border border-gray-100 shadow-[0_4px_25px_rgba(0,0,0,0.05)] transition-all">
         {/* Card Header */}
         <div className="text-center mb-6">
           <h2 className="text-2xl sm:text-[26px] font-bold text-gray-900 tracking-tight">

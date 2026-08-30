@@ -12,6 +12,27 @@ export const assignmentService = {
     return response.data;
   },
 
+  proposeProfessional: async (
+    projectId: string | number,
+    professionalId: string | number
+  ): Promise<any> => {
+    const response = await api.post('/assignments/propose', {
+      projectId,
+      professionalId,
+    });
+    return response.data;
+  },
+
+  acceptAssignment: async (id: string | number): Promise<any> => {
+    const response = await api.post(`/assignments/${id}/accept`);
+    return response.data;
+  },
+
+  rejectAssignment: async (id: string | number): Promise<any> => {
+    const response = await api.post(`/assignments/${id}/reject`);
+    return response.data;
+  },
+
   getProjectAssignments: async (
     projectId: string | number
   ): Promise<any[]> => {
@@ -23,6 +44,11 @@ export const assignmentService = {
 
   getMyAssignments: async (): Promise<any[]> => {
     const response = await api.get('/assignments/my');
+    return response.data;
+  },
+
+  getPendingAssignments: async (): Promise<any[]> => {
+    const response = await api.get('/assignments/pending');
     return response.data;
   },
 };

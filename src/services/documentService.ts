@@ -17,6 +17,11 @@ export const documentService = {
     return response.data;
   },
 
+  getAllDocuments: async (): Promise<any[]> => {
+    const response = await api.get('/documents/all');
+    return response.data;
+  },
+
   deleteDocument: async (id: string | number): Promise<void> => {
     await api.delete(`/documents/${id}`);
   },

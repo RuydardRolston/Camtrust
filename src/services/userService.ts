@@ -55,6 +55,14 @@ export const userService = {
     const response = await api.delete<{ message: string }>(`/users/${id}`);
     return response.data;
   },
+
+  /**
+   * Fetch verified professionals for project assignment
+   */
+  getVerifiedProfessionals: async (): Promise<User[]> => {
+    const response = await api.get<{ success: boolean; professionals: User[] }>('/users/professionals/verified');
+    return response.data.professionals || [];
+  },
 };
 
 export default userService;

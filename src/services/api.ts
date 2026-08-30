@@ -4,9 +4,10 @@
  */
 
 import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios';
-
 const BASE_URL =
-  (typeof import.meta !== 'undefined' && import.meta.env?.VITE_API_URL) ||
+  (typeof import.meta !== 'undefined' &&
+    import.meta.env?.MODE === 'production' &&
+    import.meta.env?.VITE_API_URL) ||
   '/api';
 
 export interface ApiError {

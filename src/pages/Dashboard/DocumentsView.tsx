@@ -172,7 +172,7 @@ export const DocumentsView: React.FC = () => {
                   </a>
                   <button
                     onClick={() => handleDelete(doc.id)}
-                    className="p-2 rounded-lg text-gray-400 hover:text-rose-600 hover:bg-rose-50 transition"
+                    className="p-2 rounded-lg text-gray-400 hover:text-orange-600 hover:bg-orange-50 transition"
                     title="Delete"
                   >
                     <Trash2 size={16} />

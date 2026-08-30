@@ -1,9 +1,9 @@
 /**
  * CamTrust - Engineer Update Progress View
- * Enables engineers to update milestones and submit progress reports.
+ * Enables engineers to capture photos with GPS location name, update milestones, and submit progress reports.
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   HardHat,
   CheckCircle2,
@@ -13,7 +13,8 @@ import {
   MapPin,
   Calendar,
   Camera,
-  Loader2
+  Loader2,
+  X
 } from 'lucide-react';
 import useAuth from '../../hooks/useAuth';
 import assignmentService from '../../services/assignmentService';
@@ -21,6 +22,8 @@ import projectService from '../../services/projectService';
 import milestoneService from '../../services/milestoneService';
 import reportService from '../../services/reportService';
 import evidenceService from '../../services/evidenceService';
+import { stampPhotoWithMetadata } from '../../utils/photoWaterMark';
+import { getLocationName, formatLocationForWatermark, LocationInfo } from '../../utils/locationService';
 
 export interface Project {
   id: number;
@@ -51,6 +54,14 @@ export const UpdateProgressView: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
+
+  // Photo capture state
+  const [photos, setPhotos] = useState<string[]>([]);
+  const [isCapturing, setIsCapturing] = useState(false);
+  const [locationInfo, setLocationInfo] = useState<LocationInfo | null>(null);
+  const [locationLoading, setLocationLoading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     loadData();
@@ -104,12 +115,129 @@ export const UpdateProgressView: React.FC = () => {
     }
   };
 
+  const acquireLocation = async (): Promise<LocationInfo> => {
+    setLocationLoading(true);
+    try {
+      if ('geolocation' in navigator) {
+        const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+          navigator.geolocation.getCurrentPosition(resolve, reject, {
+            timeout: 10000,
+            enableHighAccuracy: true,
+          });
+        });
+
+        const { latitude, longitude } = position.coords;
+        const location = await getLocationName(latitude, longitude);
+        setLocationInfo(location);
+        return location;
+      } else {
+        const fallback: LocationInfo = {
+          displayName: 'Location unavailable',
+          city: '',
+          country: '',
+        };
+        setLocationInfo(fallback);
+        return fallback;
+      }
+    } catch (error) {
+      const fallback: LocationInfo = {
+        displayName: 'Location unavailable',
+        city: '',
+        country: '',
+      };
+      setLocationInfo(fallback);
+      return fallback;
+    } finally {
+      setLocationLoading(false);
+    }
+  };
+
+  const handlePhotoCapture = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    setIsCapturing(true);
+    const location = locationInfo || (await acquireLocation());
+    const now = new Date();
+    const timestamp = now.toLocaleString('en-GB', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+    });
+
+    const locationName = formatLocationForWatermark(location);
+
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      try {
+        const stampedBlob = await stampPhotoWithMetadata(
+          file,
+          locationName,
+          timestamp,
+          user?.fullName || 'Engineer'
+        );
+
+        const stampedFile = new File([stampedBlob], `stamped_${file.name}`, { type: 'image/jpeg' });
+        const reader = new FileReader();
+
+        await new Promise<void>((resolve) => {
+          reader.onload = (event) => {
+            const base64 = event.target?.result as string;
+            setPhotos((prev) => [...prev, base64]);
+            resolve();
+          };
+          reader.onerror = () => resolve();
+          reader.readAsDataURL(stampedFile);
+        });
+      } catch (error) {
+        console.error('Failed to stamp photo:', error);
+      }
+    }
+
+    setIsCapturing(false);
+    if (cameraInputRef.current) cameraInputRef.current.value = '';
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const handleRemovePhoto = (index: number) => {
+    setPhotos(photos.filter((_, i) => i !== index));
+  };
+
   const handleSubmitProgress = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedMilestoneId) return;
 
     try {
       setSubmitting(true);
+
+      // Upload photos as evidence if any
+      if (photos.length > 0) {
+        const location = locationInfo || await acquireLocation();
+        const now = new Date();
+        const timestamp = now.toISOString();
+        const locationName = formatLocationForWatermark(location);
+
+        for (const photoDataUrl of photos) {
+          const blob = dataUrlToBlob(photoDataUrl);
+          const formData = new FormData();
+          formData.append('photo', blob, `evidence_${Date.now()}.jpg`);
+          formData.append('milestoneId', String(selectedMilestoneId));
+          formData.append('capturedAt', timestamp);
+          formData.append('locationName', locationName);
+          formData.append('gpsAvailable', locationName === 'Location unavailable' ? 'false' : 'true');
+
+          if (location.displayName && location.displayName !== 'Location unavailable') {
+            formData.append('gpsLatitude', '0');
+            formData.append('gpsLongitude', '0');
+          }
+
+          await evidenceService.uploadEvidence(formData);
+        }
+      }
+
       await milestoneService.updateMilestone(selectedMilestoneId, {
         completionRate: progress,
         status: progress === 100 ? 'Completed' : progress > 0 ? 'In Progress' : 'Pending',
@@ -123,11 +251,23 @@ export const UpdateProgressView: React.FC = () => {
       setSuccess(true);
       setTimeout(() => setSuccess(false), 4000);
       setNotes('');
+      setPhotos([]);
     } catch (err: any) {
       alert(err.message || 'Failed to submit progress');
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const dataUrlToBlob = (dataUrl: string): Blob => {
+    const parts = dataUrl.split(',');
+    const mime = parts[0].match(/:(.*?);/)?.[1] || 'image/jpeg';
+    const bstr = atob(parts[1]);
+    const u8arr = new Uint8Array(bstr.length);
+    for (let i = 0; i < bstr.length; i++) {
+      u8arr[i] = bstr.charCodeAt(i);
+    }
+    return new Blob([u8arr], { type: mime });
   };
 
   if (loading) {
@@ -149,7 +289,7 @@ export const UpdateProgressView: React.FC = () => {
             </h1>
           </div>
           <p className="text-xs sm:text-sm text-gray-500 mt-1">
-            Update milestone completion and submit progress reports.
+            Capture site photos with timestamp & location, update milestones, and submit progress reports.
           </p>
         </div>
 
@@ -161,7 +301,7 @@ export const UpdateProgressView: React.FC = () => {
       {success && (
         <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-2xl text-emerald-800 text-sm font-bold flex items-center gap-2 animate-fadeIn">
           <CheckCircle2 size={18} className="text-emerald-600 flex-shrink-0" />
-          <span>Progress update submitted successfully!</span>
+          <span>Progress update submitted successfully with stamped evidence!</span>
         </div>
       )}
 
@@ -225,6 +365,114 @@ export const UpdateProgressView: React.FC = () => {
             <span>50%</span>
             <span>100%</span>
           </div>
+        </div>
+
+        {/* Photo & Video Evidence with Location Name Stamp */}
+        <div>
+          <div className="flex items-center justify-between mb-2">
+            <label className="block text-xs font-bold text-gray-800 uppercase tracking-wider">
+              Site Evidence Photos ({photos.length})
+            </label>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="text-[11px] font-semibold text-emerald-600 hover:text-emerald-700 flex items-center gap-1"
+              >
+                <MapPin size={12} />
+                {locationLoading ? 'Acquiring location...' : locationInfo ? 'Location acquired' : 'Get Location'}
+              </button>
+            </div>
+          </div>
+
+          {/* Hidden File Inputs */}
+          <input
+            type="file"
+            ref={fileInputRef}
+            onChange={handlePhotoCapture}
+            accept="image/*"
+            multiple
+            className="hidden"
+          />
+          <input
+            type="file"
+            ref={cameraInputRef}
+            onChange={handlePhotoCapture}
+            accept="image/*"
+            capture="environment"
+            className="hidden"
+          />
+
+          {/* Photo Previews */}
+          {photos.length > 0 && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+              {photos.map((img, idx) => (
+                <div key={idx} className="relative rounded-2xl overflow-hidden bg-gray-100 group border border-gray-200 shadow-sm aspect-video">
+                  <img src={img} alt="Evidence thumbnail" className="w-full h-full object-cover" />
+                  <button
+                    type="button"
+                    onClick={() => handleRemovePhoto(idx)}
+                    className="absolute top-2 right-2 p-1.5 bg-orange-600/85 text-white rounded-xl shadow-md opacity-90 hover:opacity-100 transition"
+                    title="Remove Photo"
+                  >
+                    <X size={15} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Upload Buttons */}
+          <div className="flex gap-3">
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className="flex-1 border-2 border-dashed border-gray-200 hover:border-emerald-500 rounded-2xl p-4 text-center bg-gray-50/50 hover:bg-emerald-50/20 cursor-pointer transition flex flex-col items-center justify-center gap-2"
+            >
+              {isCapturing ? (
+                <div className="flex flex-col items-center gap-2">
+                  <Loader2 className="w-6 h-6 animate-spin text-emerald-600" />
+                  <span className="text-xs font-bold text-emerald-700">Processing photo...</span>
+                </div>
+              ) : (
+                <>
+                  <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center">
+                    <Camera size={20} />
+                  </div>
+                  <div className="text-xs font-bold text-gray-900">Upload Photos</div>
+                  <div className="text-[10px] text-gray-400">From gallery</div>
+                </>
+              )}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => cameraInputRef.current?.click()}
+              className="flex-1 border-2 border-dashed border-gray-200 hover:border-emerald-500 rounded-2xl p-4 text-center bg-gray-50/50 hover:bg-emerald-50/20 cursor-pointer transition flex flex-col items-center justify-center gap-2"
+            >
+              {isCapturing ? (
+                <div className="flex flex-col items-center gap-2">
+                  <Loader2 className="w-6 h-6 animate-spin text-emerald-600" />
+                  <span className="text-xs font-bold text-emerald-700">Processing...</span>
+                </div>
+              ) : (
+                <>
+                  <div className="w-10 h-10 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center">
+                    <Camera size={20} />
+                  </div>
+                  <div className="text-xs font-bold text-gray-900">Take Photo</div>
+                  <div className="text-[10px] text-gray-400">Use camera</div>
+                </>
+              )}
+            </button>
+          </div>
+
+          {locationInfo && (
+            <div className="mt-2 flex items-center gap-1 text-[10px] text-gray-500">
+              <MapPin size={10} />
+              <span>Location: {formatLocationForWatermark(locationInfo)}</span>
+            </div>
+          )}
         </div>
 
         <div>

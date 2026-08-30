@@ -14,6 +14,11 @@ export const evidenceService = {
     });
     return response.data;
   },
+
+  getAllEvidence: async (): Promise<any[]> => {
+    const response = await api.get('/evidence/all');
+    return response.data;
+  },
 };
 
 export default evidenceService;

@@ -21,6 +21,7 @@ import AIAssistantView from './Dashboard/AIAssistantView';
 import TeamView from './Dashboard/TeamView';
 import FinanceView from './Dashboard/FinanceView';
 import SettingsView from './Dashboard/SettingsView';
+import ProjectProposalsView from './Dashboard/ProjectProposalsView';
 
 import EngineerDashboard from './Engineer/EngineerDashboard';
 import UpdateProgressView from './Engineer/UpdateProgressView';
@@ -29,6 +30,7 @@ import AdminDashboard from './Admin/AdminDashboard';
 import UsersManagementView from './Admin/UsersManagementView';
 import ProfessionalsVerificationView from './Admin/ProfessionalsVerificationView';
 import ProjectsManagementView from './Admin/ProjectsManagementView';
+import EvidenceView from './Dashboard/EvidenceView';
 
 export const Workspace: React.FC = () => {
   const { user, isAuthenticated, loading } = useAuth();
@@ -84,6 +86,17 @@ export const Workspace: React.FC = () => {
   const isOwner = role === 'property_owner';
   const isEngineer = role === 'professional';
   const isAdmin = role === 'administrator';
+
+  if (!isOwner && !isEngineer && !isAdmin) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <div className="text-center space-y-3">
+          <p className="text-sm font-semibold text-gray-600">Unknown user role</p>
+          <p className="text-xs text-gray-400">Role: {role || 'undefined'}</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-screen bg-slate-50 overflow-hidden font-sans antialiased">
@@ -155,6 +168,7 @@ export const Workspace: React.FC = () => {
               )}
 
               {activeTab === 'settings' && <SettingsView />}
+              {activeTab === 'proposals' && <ProjectProposalsView />}
             </>
           )}
 
@@ -209,9 +223,8 @@ export const Workspace: React.FC = () => {
                   onSelectProject={handleSelectProject}
                 />
               )}
-              {activeTab === 'reports' && (
-                <ProgressReportsView />
-              )}
+              {activeTab === 'documents' && <DocumentsView />}
+              {activeTab === 'evidence' && <EvidenceView />}
               {activeTab === 'settings' && <SettingsView />}
             </>
           )}

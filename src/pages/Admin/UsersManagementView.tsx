@@ -11,7 +11,9 @@ import {
   Trash2,
   CheckCircle2,
   Plus,
-  X
+  X,
+  ShieldCheck,
+  UserX
 } from 'lucide-react';
 import userService from '../../services/userService';
 import { User } from '../../types';
@@ -19,6 +21,7 @@ import { User } from '../../types';
 interface DisplayUser extends User {
   status?: string;
   joinedDate?: string;
+  verificationStatus?: string;
 }
 
 export const UsersManagementView: React.FC = () => {
@@ -40,11 +43,13 @@ export const UsersManagementView: React.FC = () => {
     const fetchBackendUsers = async () => {
       try {
         const liveUsers = await userService.getAllUsers();
-        if (liveUsers && liveUsers.length > 0) {
-          const formatted: DisplayUser[] = liveUsers.map((u) => ({
+        const usersList = (liveUsers as any)?.users || [];
+        if (usersList.length > 0) {
+          const formatted: DisplayUser[] = usersList.map((u: any) => ({
             ...u,
             status: 'Active',
             joinedDate: 'Recent',
+            verificationStatus: u.verified ? 'Verified' : (u.role === 'professional' ? 'Unverified' : 'N/A'),
           }));
           setUsers(formatted);
         }
@@ -107,7 +112,7 @@ export const UsersManagementView: React.FC = () => {
       <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
-            <Users className="text-rose-500" size={22} />
+            <Users className="text-orange-500" size={22} />
             <h1 className="text-xl sm:text-2xl font-extrabold text-gray-900 tracking-tight">
               Users Management
             </h1>
@@ -120,7 +125,7 @@ export const UsersManagementView: React.FC = () => {
         <div className="flex items-center gap-2">
           <button
             onClick={() => setIsModalOpen(true)}
-            className="inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-rose-600 hover:bg-rose-700 text-white font-bold text-sm rounded-xl shadow-lg shadow-rose-600/20 transition"
+            className="inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-orange-600 hover:bg-orange-700 text-white font-bold text-sm rounded-xl shadow-lg shadow-orange-600/20 transition"
           >
             <Plus size={18} />
             <span>Add User</span>
@@ -137,7 +142,7 @@ export const UsersManagementView: React.FC = () => {
             placeholder="Search by name or email..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500"
+            className="w-full pl-10 pr-4 py-2 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500"
           />
         </div>
 
@@ -167,6 +172,7 @@ export const UsersManagementView: React.FC = () => {
                 <th className="py-3.5 px-5">Name</th>
                 <th className="py-3.5 px-5">Email</th>
                 <th className="py-3.5 px-5">Role</th>
+                <th className="py-3.5 px-5">Verification</th>
                 <th className="py-3.5 px-5">Status</th>
                 <th className="py-3.5 px-5 text-right">Actions</th>
               </tr>
@@ -175,7 +181,7 @@ export const UsersManagementView: React.FC = () => {
               {filteredUsers.map((u) => {
                 const roleBadge =
                   u.role === 'administrator' || u.role === 'admin'
-                    ? 'bg-rose-50 text-rose-700 border-rose-200'
+                     ? 'bg-orange-50 text-orange-700 border-orange-200'
                     : u.role === 'professional' || u.role === 'engineer'
                     ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
                     : 'bg-orange-50 text-orange-700 border-orange-200';
@@ -202,6 +208,21 @@ export const UsersManagementView: React.FC = () => {
                       </span>
                     </td>
                     <td className="py-3.5 px-5">
+                      {u.role === 'professional' || u.role === 'engineer' ? (
+                        u.verified ? (
+                          <span className="inline-flex items-center gap-1 text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">
+                            <ShieldCheck size={11} /> Verified
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 text-xs font-bold text-orange-600 bg-orange-50 px-2 py-0.5 rounded-full">
+                            <UserX size={11} /> Unverified
+                          </span>
+                        )
+                      ) : (
+                        <span className="text-xs text-gray-400">N/A</span>
+                      )}
+                    </td>
+                    <td className="py-3.5 px-5">
                       <span className="inline-flex items-center gap-1 text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">
                         <CheckCircle2 size={11} /> {u.status || 'Active'}
                       </span>
@@ -209,7 +230,7 @@ export const UsersManagementView: React.FC = () => {
                     <td className="py-3.5 px-5 text-right space-x-2">
                       <button
                         onClick={() => handleDeleteUser(u.id)}
-                        className="p-1.5 rounded-lg text-gray-400 hover:text-rose-600 hover:bg-rose-50 transition"
+                        className="p-1.5 rounded-lg text-gray-400 hover:text-orange-600 hover:bg-orange-50 transition"
                         title="Delete user"
                       >
                         <Trash2 size={15} />
@@ -250,7 +271,7 @@ export const UsersManagementView: React.FC = () => {
                   placeholder="e.g. John Doe"
                   value={newUser.fullName}
                   onChange={(e) => setNewUser({ ...newUser, fullName: e.target.value })}
-                  className="w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500"
+                  className="w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500"
                 />
               </div>
 
@@ -264,7 +285,7 @@ export const UsersManagementView: React.FC = () => {
                   placeholder="user@example.com"
                   value={newUser.email}
                   onChange={(e) => setNewUser({ ...newUser, email: e.target.value })}
-                  className="w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500"
+                  className="w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500"
                 />
               </div>
 
@@ -275,7 +296,7 @@ export const UsersManagementView: React.FC = () => {
                 <select
                   value={newUser.role}
                   onChange={(e) => setNewUser({ ...newUser, role: e.target.value })}
-                  className="w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 bg-white"
+                  className="w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 bg-white"
                 >
                   <option value="property_owner">Property Owner</option>
                   <option value="professional">Civil Engineer / Contractor</option>
@@ -293,7 +314,7 @@ export const UsersManagementView: React.FC = () => {
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold shadow-md shadow-rose-600/20"
+                  className="px-5 py-2.5 rounded-xl bg-orange-600 hover:bg-orange-700 text-white text-xs font-bold shadow-md shadow-orange-600/20"
                 >
                   Save User
                 </button>

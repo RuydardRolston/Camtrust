@@ -5,9 +5,18 @@ const SOCKET_URL =
     import.meta.env?.VITE_SOCKET_URL) ||
   (typeof window !== 'undefined' && window.location.origin);
 
-export const socket: Socket = io(SOCKET_URL, {
-  autoConnect: true,
-});
+let socketInstance: Socket | null = null;
+
+export const getSocket = (): Socket => {
+  if (!socketInstance) {
+    socketInstance = io(SOCKET_URL, {
+      autoConnect: true,
+    });
+  }
+  return socketInstance;
+};
+
+export const socket: Socket = getSocket();
 
 export const joinProjectRoom = (projectId: string | number): void => {
   socket.emit('join:project', projectId);
@@ -17,6 +26,10 @@ export const leaveProjectRoom = (projectId: string | number): void => {
   socket.emit('leave:project', projectId);
 };
 
+export const joinUserRoom = (userId: string | number): void => {
+  socket.emit('join:user', userId);
+};
+
 export const SOCKET_EVENTS = {
   PROJECT_UPDATED: 'project:updated',
   EVIDENCE_NEW: 'evidence:new',
@@ -24,6 +37,7 @@ export const SOCKET_EVENTS = {
   MILESTONE_UPDATED: 'milestone:updated',
   REPORT_NEW: 'report:new',
   VERIFICATION_UPDATED: 'verification:updated',
+  NOTIFICATION_NEW: 'notification:new',
 } as const;
 
 export type SocketEventType =

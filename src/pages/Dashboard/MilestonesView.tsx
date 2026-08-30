@@ -165,7 +165,7 @@ export const MilestonesView: React.FC = () => {
                           <div className="w-24 bg-gray-100 h-2 rounded-full overflow-hidden">
                             <div
                               className={`h-full rounded-full ${
-                                m.completionRate >= 70 ? 'bg-orange-500' : m.completionRate >= 40 ? 'bg-amber-500' : 'bg-rose-500'
+                                m.completionRate >= 70 ? 'bg-orange-500' : m.completionRate >= 40 ? 'bg-amber-500' : 'bg-orange-500'
                               }`}
                               style={{ width: `${m.completionRate}%` }}
                             />

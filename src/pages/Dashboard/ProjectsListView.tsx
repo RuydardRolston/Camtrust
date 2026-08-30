@@ -100,7 +100,7 @@ export const ProjectsListView: React.FC<ProjectsListViewProps> = ({
   const statusBadge = (status: string) => {
     switch (status) {
       case 'Completed': return 'bg-emerald-50 text-emerald-700 border-emerald-200';
-      case 'Rejected': return 'bg-rose-50 text-rose-700 border-rose-200';
+      case 'Rejected': return 'bg-orange-50 text-orange-700 border-orange-200';
       case 'Approved':
       case 'In Progress': return 'bg-blue-50 text-blue-700 border-blue-200';
       default: return 'bg-amber-50 text-amber-700 border-amber-200';
@@ -138,7 +138,7 @@ export const ProjectsListView: React.FC<ProjectsListViewProps> = ({
       </div>
 
       {error && (
-        <div className="bg-rose-50 border border-rose-200 text-rose-700 text-sm p-4 rounded-xl">
+        <div className="bg-orange-50 border border-orange-200 text-orange-700 text-sm p-4 rounded-xl">
           {error}
           <button onClick={loadProjects} className="ml-2 underline font-semibold">Retry</button>
         </div>
