@@ -46,7 +46,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   const isOwner = role === 'property_owner';
   const isEngineer = role === 'professional' || role === 'engineer';
-  const isAdmin = role === 'administrator' || role === 'admin';
 
   const roleLabel = isOwner
     ? 'Project Owner'

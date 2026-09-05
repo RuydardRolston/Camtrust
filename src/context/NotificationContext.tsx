@@ -34,7 +34,12 @@ export const NotificationProvider: React.FC<{ children: ReactNode }> = ({ childr
   const refresh = async () => {
     try {
       const data = await notificationService.getMyNotifications();
-      setNotifications(data.notifications || []);
+      const items = Array.isArray((data as any)?.notifications)
+        ? (data as any).notifications
+        : Array.isArray(data)
+          ? data
+          : [];
+      setNotifications(items);
     } catch (err) {
       console.error('Failed to load notifications:', err);
     } finally {

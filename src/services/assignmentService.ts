@@ -12,6 +12,11 @@ export const assignmentService = {
     return response.data;
   },
 
+  getVerifiedEngineers: async (): Promise<any> => {
+    const response = await api.get('/assignments/verified-engineers');
+    return response.data;
+  },
+
   proposeProfessional: async (
     projectId: string | number,
     professionalId: string | number
@@ -35,19 +40,19 @@ export const assignmentService = {
 
   getProjectAssignments: async (
     projectId: string | number
-  ): Promise<any[]> => {
+  ): Promise<any> => {
     const response = await api.get('/assignments', {
       params: { projectId },
     });
     return response.data;
   },
 
-  getMyAssignments: async (): Promise<any[]> => {
+  getMyAssignments: async (): Promise<any> => {
     const response = await api.get('/assignments/my');
     return response.data;
   },
 
-  getPendingAssignments: async (): Promise<any[]> => {
+  getPendingAssignments: async (): Promise<any> => {
     const response = await api.get('/assignments/pending');
     return response.data;
   },

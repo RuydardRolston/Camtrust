@@ -21,7 +21,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
   useEffect(() => {
     const stored = authService.getStoredUser();
-    if (stored) {
+    if (stored?.id != null) {
       setUser(stored);
       joinUserRoom(stored.id);
     }

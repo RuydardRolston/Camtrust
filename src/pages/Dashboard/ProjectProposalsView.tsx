@@ -6,11 +6,8 @@
 import React, { useState, useEffect } from 'react';
 import {
   Users,
-  CheckCircle2,
-  XCircle,
   Loader2,
   MapPin,
-  Calendar,
   Award
 } from 'lucide-react';
 import assignmentService from '../../services/assignmentService';

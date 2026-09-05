@@ -2,7 +2,16 @@ import api from './api';
 
 export interface ReportPayload {
   projectId: string | number;
-  summary: string;
+  milestoneId?: string | number | null;
+  summary?: string;
+  workCompleted?: string;
+  workInProgress?: string;
+  workRemaining?: string;
+  observations?: string;
+  issues?: string;
+  recommendations?: string;
+  progressPercentage?: number;
+  pdfUrl?: string;
 }
 
 export const reportService = {
@@ -11,19 +20,24 @@ export const reportService = {
     return response.data;
   },
 
-  getProjectReports: async (projectId: string | number): Promise<any[]> => {
+  getProjectReports: async (projectId: string | number): Promise<any> => {
     const response = await api.get('/reports', {
       params: { projectId },
     });
     return response.data;
   },
 
-  getMyReports: async (): Promise<any[]> => {
+  getReportById: async (id: string | number): Promise<any> => {
+    const response = await api.get(`/reports/${id}`);
+    return response.data;
+  },
+
+  getMyReports: async (): Promise<any> => {
     const response = await api.get('/reports/my');
     return response.data;
   },
 
-  getAllReports: async (): Promise<any[]> => {
+  getAllReports: async (): Promise<any> => {
     const response = await api.get('/reports/all');
     return response.data;
   },

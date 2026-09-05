@@ -9,6 +9,9 @@ export interface User {
   fullName?: string;
   email: string;
   role: UserRole | string;
+  verified?: boolean;
+  phone?: string;
+  avatar?: string;
 }
 
 export interface LoginCredentials {

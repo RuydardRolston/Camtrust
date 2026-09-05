@@ -10,14 +10,14 @@ export const documentService = {
 
   getProjectDocuments: async (
     projectId: string | number
-  ): Promise<any[]> => {
+  ): Promise<any> => {
     const response = await api.get('/documents', {
       params: { projectId },
     });
     return response.data;
   },
 
-  getAllDocuments: async (): Promise<any[]> => {
+  getAllDocuments: async (): Promise<any> => {
     const response = await api.get('/documents/all');
     return response.data;
   },

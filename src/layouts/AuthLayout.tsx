@@ -12,7 +12,7 @@ export interface AuthLayoutProps {
 export const AuthLayout: React.FC<AuthLayoutProps> = ({ children }) => {
   return (
     <div className="min-h-screen bg-[#f8f9fa] flex items-center justify-center py-10 px-4 font-sans text-gray-900 selection:bg-[#ea9200] selection:text-white">
-      <div className="w-full max-w-[420px]">
+      <div className="w-full max-w-105">
         {children}
       </div>
     </div>

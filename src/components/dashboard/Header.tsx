@@ -146,7 +146,7 @@ export const Header: React.FC<HeaderProps> = ({
                         !n.read ? 'bg-orange-50/50 hover:bg-orange-50' : 'hover:bg-gray-50'
                       }`}
                     >
-                      <div className="w-2 h-2 rounded-full bg-orange-500 mt-1.5 flex-shrink-0" />
+                      <div className="w-2 h-2 rounded-full bg-orange-500 mt-1.5 shrink-0" />
                       <div className="min-w-0 flex-1">
                         <div className="text-xs font-bold text-gray-900 truncate">
                           {n.title}
@@ -183,7 +183,7 @@ export const Header: React.FC<HeaderProps> = ({
               onClick={() => setUserMenuOpen(!userMenuOpen)}
               className="flex items-center gap-2.5 p-1 rounded-xl hover:bg-gray-50 transition text-left"
             >
-              <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-orange-500 to-amber-500 text-white font-extrabold text-xs flex items-center justify-center shadow-md shadow-orange-500/20">
+              <div className="w-9 h-9 rounded-full bg-linear-to-tr from-orange-500 to-amber-500 text-white font-extrabold text-xs flex items-center justify-center shadow-md shadow-orange-500/20">
                 {(user?.fullName || user?.email || 'U').charAt(0).toUpperCase()}
               </div>
               <div className="hidden md:block">

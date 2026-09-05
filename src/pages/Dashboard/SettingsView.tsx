@@ -15,12 +15,10 @@ import {
   Phone,
   MapPin,
   Building2,
-  LogOut,
   Save,
   Eye,
   EyeOff,
   CheckCircle2,
-  X
 } from 'lucide-react';
 import useAuth from '../../hooks/useAuth';
 
@@ -33,7 +31,7 @@ export interface SettingsViewProps {
 }
 
 export const SettingsView: React.FC<SettingsViewProps> = ({ user }) => {
-  const { user: authUser, logout } = useAuth();
+  const { user: authUser } = useAuth();
   const currentUser = user || authUser;
 
   const [activeSection, setActiveSection] = useState('profile');
@@ -61,15 +59,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ user }) => {
     setSaved(true);
     setTimeout(() => setSaved(false), 3000);
   };
-
-  const roleLabel =
-    currentUser?.role === 'property_owner'
-      ? 'Project Owner'
-      : currentUser?.role === 'professional'
-      ? 'Civil Engineer'
-      : currentUser?.role === 'administrator'
-      ? 'Administrator'
-      : 'Member';
 
   const sections = [
     { id: 'profile', label: 'Profile', icon: User },

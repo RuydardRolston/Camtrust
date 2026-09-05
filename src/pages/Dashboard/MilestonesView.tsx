@@ -5,7 +5,6 @@
 
 import React, { useState, useEffect } from 'react';
 import {
-  Layers,
   Plus,
   Loader2
 } from 'lucide-react';
@@ -53,11 +52,12 @@ export const MilestonesView: React.FC = () => {
         projectService.getMyProjects(),
         milestoneService.getMyMilestones(),
       ]);
-      setProjects(projectsData.projects || []);
-      const ms = milestonesData.milestones || [];
-      setMilestones(ms);
-      if (projectsData.projects?.length > 0 && !selectedProjectId) {
-        setSelectedProjectId(projectsData.projects[0].id);
+      const projectList = Array.isArray(projectsData) ? projectsData : (projectsData?.projects || []);
+      const msList = Array.isArray(milestonesData) ? milestonesData : (milestonesData?.milestones || []);
+      setProjects(projectList);
+      setMilestones(msList);
+      if (projectList.length > 0 && !selectedProjectId) {
+        setSelectedProjectId(projectList[0].id);
       }
     } catch (err) {
       console.error('Failed to load milestones:', err);
@@ -69,7 +69,8 @@ export const MilestonesView: React.FC = () => {
   const loadMilestones = async (projectId: number) => {
     try {
       const data = await milestoneService.getMilestones(projectId);
-      setMilestones(data.milestones || []);
+      const msList = Array.isArray(data) ? data : (data?.milestones || []);
+      setMilestones(msList);
     } catch (err) {
       console.error('Failed to load milestones:', err);
     }

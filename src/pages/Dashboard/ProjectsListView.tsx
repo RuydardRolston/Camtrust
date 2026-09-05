@@ -12,7 +12,6 @@ import {
   X,
   Loader2
 } from 'lucide-react';
-import useAuth from '../../hooks/useAuth';
 import projectService from '../../services/projectService';
 import { useCurrency } from '../../context/CurrencyContext';
 
@@ -36,7 +35,6 @@ export const ProjectsListView: React.FC<ProjectsListViewProps> = ({
   onSelectProject,
   onNavigateTab,
 }) => {
-  const { user } = useAuth();
   const { convert } = useCurrency();
   const [projects, setProjects] = useState<Project[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -63,7 +61,8 @@ export const ProjectsListView: React.FC<ProjectsListViewProps> = ({
     try {
       setLoading(true);
       const data = await projectService.getMyProjects();
-      setProjects(data.projects || []);
+      const projectList = Array.isArray(data) ? data : (data?.projects || []);
+      setProjects(projectList);
     } catch (err: any) {
       setError(err.message || 'Failed to load projects');
     } finally {

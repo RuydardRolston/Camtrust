@@ -1,29 +1,29 @@
 /**
- * CamTrust - Engineer Update Progress View
- * Enables engineers to capture photos with GPS location name, update milestones, and submit progress reports.
+ * CamTrust - Engineer Update Progress & In-App Evidence View
+ * Allows verified civil engineers to update milestones, capture in-app photos with real GPS,
+ * and submit detailed construction progress reports.
  */
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   HardHat,
   CheckCircle2,
   ShieldCheck,
-  Plus,
-  Trash2,
   MapPin,
-  Calendar,
   Camera,
   Loader2,
-  X
+  AlertCircle,
+  Eye,
 } from 'lucide-react';
 import useAuth from '../../hooks/useAuth';
 import assignmentService from '../../services/assignmentService';
-import projectService from '../../services/projectService';
 import milestoneService from '../../services/milestoneService';
 import reportService from '../../services/reportService';
 import evidenceService from '../../services/evidenceService';
-import { stampPhotoWithMetadata } from '../../utils/photoWaterMark';
-import { getLocationName, formatLocationForWatermark, LocationInfo } from '../../utils/locationService';
+import CameraEvidenceModal from '../../components/monitoring/CameraEvidenceModal';
+import ReportViewerModal from '../../components/monitoring/ReportViewerModal';
+import VerifiedBadge from '../../components/common/VerifiedBadge';
+import { ProgressReportData } from '../../utils/pdfReportGenerator';
 
 export interface Project {
   id: number;
@@ -49,19 +49,28 @@ export const UpdateProgressView: React.FC = () => {
   const [milestones, setMilestones] = useState<Milestone[]>([]);
   const [selectedProjectId, setSelectedProjectId] = useState<number>(0);
   const [selectedMilestoneId, setSelectedMilestoneId] = useState<number>(0);
+
+  // Detailed Progress State
   const [progress, setProgress] = useState(0);
-  const [notes, setNotes] = useState('');
+  const [workCompleted, setWorkCompleted] = useState('');
+  const [workInProgress, setWorkInProgress] = useState('');
+  const [workRemaining, setWorkRemaining] = useState('');
+  const [observations, setObservations] = useState('');
+  const [issues, setIssues] = useState('');
+  const [recommendations, setRecommendations] = useState('');
+
+  // Site Evidence state
+  const [recordedEvidence, setRecordedEvidence] = useState<any[]>([]);
+  const [isCameraModalOpen, setIsCameraModalOpen] = useState(false);
+
+  // Report Preview Modal state
+  const [previewReportData, setPreviewReportData] = useState<ProgressReportData | null>(null);
+  const [isViewerModalOpen, setIsViewerModalOpen] = useState(false);
+
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
-  const [success, setSuccess] = useState(false);
-
-  // Photo capture state
-  const [photos, setPhotos] = useState<string[]>([]);
-  const [isCapturing, setIsCapturing] = useState(false);
-  const [locationInfo, setLocationInfo] = useState<LocationInfo | null>(null);
-  const [locationLoading, setLocationLoading] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const cameraInputRef = useRef<HTMLInputElement>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
     loadData();
@@ -70,6 +79,7 @@ export const UpdateProgressView: React.FC = () => {
   useEffect(() => {
     if (selectedProjectId) {
       loadMilestones(selectedProjectId);
+      loadProjectEvidence(selectedProjectId);
     }
   }, [selectedProjectId]);
 
@@ -77,17 +87,15 @@ export const UpdateProgressView: React.FC = () => {
     try {
       setLoading(true);
       const assignments = await assignmentService.getMyAssignments();
-      const projectPromises = (assignments.assignments || []).map((a: any) =>
-        projectService.getProjectById(a.projectId)
-      );
-      const projectsData = await Promise.all(projectPromises);
-      const projectsList = projectsData.map((p: any) => p.project).filter(Boolean);
-      setProjects(projectsList);
-      if (projectsList.length > 0) {
-        setSelectedProjectId(projectsList[0].id);
+      const projectList = (assignments.assignments || []).map((a: any) => a.project).filter(Boolean);
+      setProjects(projectList);
+
+      if (projectList.length > 0) {
+        setSelectedProjectId(projectList[0].id);
       }
     } catch (err) {
-      console.error('Failed to load projects:', err);
+      console.error('Failed to load assigned projects:', err);
+      setErrorMessage('Failed to load assigned projects. Please verify your internet connection.');
     } finally {
       setLoading(false);
     }
@@ -107,6 +115,15 @@ export const UpdateProgressView: React.FC = () => {
     }
   };
 
+  const loadProjectEvidence = async (projectId: number) => {
+    try {
+      const data = await evidenceService.getProjectEvidence(projectId);
+      setRecordedEvidence(data.evidence || []);
+    } catch (err) {
+      console.error('Failed to load project evidence:', err);
+    }
+  };
+
   const handleMilestoneChange = (milestoneId: number) => {
     setSelectedMilestoneId(milestoneId);
     const milestone = milestones.find((m) => m.id === milestoneId);
@@ -115,160 +132,95 @@ export const UpdateProgressView: React.FC = () => {
     }
   };
 
-  const acquireLocation = async (): Promise<LocationInfo> => {
-    setLocationLoading(true);
-    try {
-      if ('geolocation' in navigator) {
-        const position = await new Promise<GeolocationPosition>((resolve, reject) => {
-          navigator.geolocation.getCurrentPosition(resolve, reject, {
-            timeout: 10000,
-            enableHighAccuracy: true,
-          });
-        });
-
-        const { latitude, longitude } = position.coords;
-        const location = await getLocationName(latitude, longitude);
-        setLocationInfo(location);
-        return location;
-      } else {
-        const fallback: LocationInfo = {
-          displayName: 'Location unavailable',
-          city: '',
-          country: '',
-        };
-        setLocationInfo(fallback);
-        return fallback;
-      }
-    } catch (error) {
-      const fallback: LocationInfo = {
-        displayName: 'Location unavailable',
-        city: '',
-        country: '',
-      };
-      setLocationInfo(fallback);
-      return fallback;
-    } finally {
-      setLocationLoading(false);
-    }
+  const handleEvidenceCaptured = (newEvidence: any) => {
+    setRecordedEvidence((prev) => [newEvidence, ...prev]);
   };
 
-  const handlePhotoCapture = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
+  const handlePreviewCurrentReport = () => {
+    const selectedProject = projects.find((p) => p.id === selectedProjectId);
+    const selectedMilestone = milestones.find((m) => m.id === selectedMilestoneId);
 
-    setIsCapturing(true);
-    const location = locationInfo || (await acquireLocation());
-    const now = new Date();
-    const timestamp = now.toLocaleString('en-GB', {
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-    });
+    const reportData: ProgressReportData = {
+      projectTitle: selectedProject?.title || 'Project',
+      projectLocation: selectedProject?.location || 'Site Location',
+      projectStatus: selectedProject?.status || 'In Progress',
+      reportingDate: new Date().toISOString(),
+      currentMilestoneLabel: selectedMilestone?.label || 'Milestone',
+      overallProgress: progress,
+      engineer: {
+        fullName: user?.fullName || 'Verified Civil Engineer',
+        specialty: (user as any)?.specialty || 'Lead Construction Engineer',
+        verified: true,
+      },
+      workCompleted: workCompleted || 'Completed excavation, reinforcement tying, and concrete curing.',
+      workInProgress: workInProgress || 'Formwork assembly and column alignment.',
+      workRemaining: workRemaining || 'Superstructure beam casting and quality tests.',
+      observations: observations || 'All materials comply with engineering standards and slump tests passed.',
+      issues: issues || undefined,
+      recommendations: recommendations || undefined,
+      evidencePhotos: recordedEvidence.map((e) => ({
+        photoUrl: e.photoUrl,
+        description: e.description,
+        capturedAt: e.capturedAt,
+        gpsLatitude: e.gpsLatitude,
+        gpsLongitude: e.gpsLongitude,
+        gpsAvailable: e.gpsAvailable,
+        milestoneLabel: selectedMilestone?.label,
+      })),
+    };
 
-    const locationName = formatLocationForWatermark(location);
-
-    for (let i = 0; i < files.length; i++) {
-      const file = files[i];
-      try {
-        const stampedBlob = await stampPhotoWithMetadata(
-          file,
-          locationName,
-          timestamp,
-          user?.fullName || 'Engineer'
-        );
-
-        const stampedFile = new File([stampedBlob], `stamped_${file.name}`, { type: 'image/jpeg' });
-        const reader = new FileReader();
-
-        await new Promise<void>((resolve) => {
-          reader.onload = (event) => {
-            const base64 = event.target?.result as string;
-            setPhotos((prev) => [...prev, base64]);
-            resolve();
-          };
-          reader.onerror = () => resolve();
-          reader.readAsDataURL(stampedFile);
-        });
-      } catch (error) {
-        console.error('Failed to stamp photo:', error);
-      }
-    }
-
-    setIsCapturing(false);
-    if (cameraInputRef.current) cameraInputRef.current.value = '';
-    if (fileInputRef.current) fileInputRef.current.value = '';
-  };
-
-  const handleRemovePhoto = (index: number) => {
-    setPhotos(photos.filter((_, i) => i !== index));
+    setPreviewReportData(reportData);
+    setIsViewerModalOpen(true);
   };
 
   const handleSubmitProgress = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedMilestoneId) return;
+    if (!selectedMilestoneId || !selectedProjectId) {
+      alert('Please select an assigned project and milestone.');
+      return;
+    }
 
     try {
       setSubmitting(true);
+      setErrorMessage(null);
 
-      // Upload photos as evidence if any
-      if (photos.length > 0) {
-        const location = locationInfo || await acquireLocation();
-        const now = new Date();
-        const timestamp = now.toISOString();
-        const locationName = formatLocationForWatermark(location);
+      const selectedMilestone = milestones.find((m) => m.id === selectedMilestoneId);
+      const summaryText = `${selectedMilestone?.label || 'Milestone'} reached ${progress}% completion. ${observations || workCompleted || ''}`.trim();
 
-        for (const photoDataUrl of photos) {
-          const blob = dataUrlToBlob(photoDataUrl);
-          const formData = new FormData();
-          formData.append('photo', blob, `evidence_${Date.now()}.jpg`);
-          formData.append('milestoneId', String(selectedMilestoneId));
-          formData.append('capturedAt', timestamp);
-          formData.append('locationName', locationName);
-          formData.append('gpsAvailable', locationName === 'Location unavailable' ? 'false' : 'true');
-
-          if (location.displayName && location.displayName !== 'Location unavailable') {
-            formData.append('gpsLatitude', '0');
-            formData.append('gpsLongitude', '0');
-          }
-
-          await evidenceService.uploadEvidence(formData);
-        }
-      }
-
-      await milestoneService.updateMilestone(selectedMilestoneId, {
-        completionRate: progress,
-        status: progress === 100 ? 'Completed' : progress > 0 ? 'In Progress' : 'Pending',
-      });
-
+      // Submit comprehensive progress report
       await reportService.submitReport({
         projectId: String(selectedProjectId),
-        summary: notes || `Progress update: ${progress}% completion`,
+        milestoneId: selectedMilestoneId,
+        summary: summaryText,
+        workCompleted,
+        workInProgress,
+        workRemaining,
+        observations,
+        issues,
+        recommendations,
+        progressPercentage: progress,
       });
 
-      setSuccess(true);
-      setTimeout(() => setSuccess(false), 4000);
-      setNotes('');
-      setPhotos([]);
+      // Update milestone
+      await milestoneService.updateMilestone(selectedMilestoneId, {
+        completionRate: progress,
+        status: progress >= 100 ? 'Completed' : progress > 0 ? 'In Progress' : 'Pending',
+      });
+
+      setSuccessMessage('Progress update and official construction report submitted successfully!');
+      setTimeout(() => setSuccessMessage(null), 5000);
+
+      // Refresh milestones
+      await loadMilestones(selectedProjectId);
     } catch (err: any) {
-      alert(err.message || 'Failed to submit progress');
+      console.error('Failed to submit progress:', err);
+      setErrorMessage(err.message || 'Failed to submit progress update.');
     } finally {
       setSubmitting(false);
     }
   };
 
-  const dataUrlToBlob = (dataUrl: string): Blob => {
-    const parts = dataUrl.split(',');
-    const mime = parts[0].match(/:(.*?);/)?.[1] || 'image/jpeg';
-    const bstr = atob(parts[1]);
-    const u8arr = new Uint8Array(bstr.length);
-    for (let i = 0; i < bstr.length; i++) {
-      u8arr[i] = bstr.charCodeAt(i);
-    }
-    return new Blob([u8arr], { type: mime });
-  };
+  const currentProject = projects.find((p) => p.id === selectedProjectId);
 
   if (loading) {
     return (
@@ -278,224 +230,318 @@ export const UpdateProgressView: React.FC = () => {
     );
   }
 
+  if (projects.length === 0) {
+    return (
+      <div className="bg-white p-12 rounded-3xl border border-gray-100 text-center space-y-4 shadow-sm max-w-xl mx-auto">
+        <HardHat className="w-12 h-12 text-slate-400 mx-auto" />
+        <h2 className="text-xl font-bold text-gray-900">No Projects Assigned Yet</h2>
+        <p className="text-sm text-gray-500">
+          You must be assigned to an approved project by the Administrator before submitting progress and site evidence.
+        </p>
+      </div>
+    );
+  }
+
   return (
-    <div className="space-y-6 animate-fadeIn max-w-4xl mx-auto">
-      <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+    <div className="space-y-6 animate-fadeIn max-w-5xl mx-auto pb-12">
+      {/* Top Header */}
+      <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2">
-            <HardHat className="text-emerald-600" size={22} />
-            <h1 className="text-xl sm:text-2xl font-extrabold text-gray-900 tracking-tight">
-              Update Progress & Site Evidence
+          <div className="flex items-center gap-2.5">
+            <div className="w-9 h-9 rounded-xl bg-emerald-500/10 text-emerald-700 flex items-center justify-center">
+              <HardHat size={20} />
+            </div>
+            <h1 className="text-xl sm:text-2xl font-black text-gray-900 tracking-tight">
+              Site Progress & Evidence Update
             </h1>
           </div>
           <p className="text-xs sm:text-sm text-gray-500 mt-1">
-            Capture site photos with timestamp & location, update milestones, and submit progress reports.
+            Capture verified in-app site photos with real GPS, update milestones, and generate official reports.
           </p>
         </div>
 
-        <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 text-emerald-700 font-bold text-xs rounded-xl border border-emerald-200">
-          <ShieldCheck size={15} /> Verified Engineer Portal
-        </span>
+        <VerifiedBadge size="md" />
       </div>
 
-      {success && (
-        <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-2xl text-emerald-800 text-sm font-bold flex items-center gap-2 animate-fadeIn">
-          <CheckCircle2 size={18} className="text-emerald-600 flex-shrink-0" />
-          <span>Progress update submitted successfully with stamped evidence!</span>
+      {/* Success Notification Banner */}
+      {successMessage && (
+        <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-2xl text-emerald-800 text-sm font-bold flex items-center gap-3 animate-fadeIn">
+          <CheckCircle2 size={20} className="text-emerald-600 shrink-0" />
+          <span>{successMessage}</span>
         </div>
       )}
 
-      <form onSubmit={handleSubmitProgress} className="bg-white rounded-2xl border border-gray-100 p-6 sm:p-8 shadow-sm space-y-6">
-        <div>
-          <label className="block text-xs font-bold text-gray-800 uppercase tracking-wider mb-2">
-            Project
-          </label>
-          <select
-            value={selectedProjectId}
-            onChange={(e) => setSelectedProjectId(Number(e.target.value))}
-            className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm font-bold text-gray-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
-          >
-            {projects.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.title} - {p.location}
-              </option>
-            ))}
-          </select>
+      {/* Error Banner */}
+      {errorMessage && (
+        <div className="p-4 bg-red-50 border border-red-200 rounded-2xl text-red-800 text-sm font-bold flex items-center gap-3 animate-fadeIn">
+          <AlertCircle size={20} className="text-red-600 shrink-0" />
+          <span>{errorMessage}</span>
         </div>
+      )}
 
-        <div>
-          <label className="block text-xs font-bold text-gray-800 uppercase tracking-wider mb-2">
-            Milestone
-          </label>
-          <select
-            value={selectedMilestoneId}
-            onChange={(e) => handleMilestoneChange(Number(e.target.value))}
-            className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm font-semibold text-gray-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
-          >
-            {milestones.map((m) => (
-              <option key={m.id} value={m.id}>
-                {m.label} ({m.completionRate}%)
-              </option>
-            ))}
-          </select>
-        </div>
+      {/* Main Form */}
+      <form onSubmit={handleSubmitProgress} className="space-y-6">
+        <div className="bg-white rounded-3xl border border-gray-100 p-6 sm:p-8 shadow-sm space-y-6">
+          {/* Project & Milestone Selector */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">
+                Assigned Construction Project
+              </label>
+              <select
+                value={selectedProjectId}
+                onChange={(e) => setSelectedProjectId(Number(e.target.value))}
+                className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm font-bold text-gray-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+              >
+                {projects.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.title} ({p.location})
+                  </option>
+                ))}
+              </select>
+            </div>
 
-        <div className="p-5 bg-gray-50/80 rounded-2xl border border-gray-100 space-y-3">
-          <div className="flex items-center justify-between">
-            <label className="text-xs font-bold text-gray-800 uppercase tracking-wider">
-              Milestone Progress
-            </label>
-            <span className="text-xl font-extrabold text-emerald-600 bg-white px-3 py-1 rounded-xl shadow-sm border border-gray-200">
-              {progress}%
-            </span>
+            <div>
+              <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">
+                Construction Milestone
+              </label>
+              <select
+                value={selectedMilestoneId}
+                onChange={(e) => handleMilestoneChange(Number(e.target.value))}
+                className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm font-bold text-gray-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+              >
+                {milestones.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.label} ({m.completionRate}%)
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
 
-          <input
-            type="range"
-            min="0"
-            max="100"
-            step="1"
-            value={progress}
-            onChange={(e) => setProgress(Number(e.target.value))}
-            className="w-full h-2.5 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-emerald-600"
-          />
+          {/* Milestone Progress Percentage Slider */}
+          <div className="p-6 bg-slate-50 rounded-2xl border border-slate-200 space-y-3">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-extrabold text-slate-800 uppercase tracking-wider">
+                Milestone Progress Completion
+              </label>
+              <span className="text-2xl font-black text-emerald-600 bg-white px-4 py-1 rounded-xl shadow-xs border border-gray-200">
+                {progress}%
+              </span>
+            </div>
 
-          <div className="flex justify-between text-[11px] text-gray-400 font-semibold">
-            <span>0%</span>
-            <span>50%</span>
-            <span>100%</span>
+            <input
+              type="range"
+              min="0"
+              max="100"
+              step="1"
+              value={progress}
+              onChange={(e) => setProgress(Number(e.target.value))}
+              className="w-full h-3 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-emerald-600"
+            />
+
+            <div className="flex justify-between text-[11px] text-gray-500 font-bold">
+              <span>0% (Not Started)</span>
+              <span>50% (Underway)</span>
+              <span>100% (Completed Milestone)</span>
+            </div>
           </div>
-        </div>
 
-        {/* Photo & Video Evidence with Location Name Stamp */}
-        <div>
-          <div className="flex items-center justify-between mb-2">
-            <label className="block text-xs font-bold text-gray-800 uppercase tracking-wider">
-              Site Evidence Photos ({photos.length})
-            </label>
-            <div className="flex items-center gap-2">
+          {/* IN-APP CAMERA & GPS SITE EVIDENCE CAPTURE */}
+          <div className="p-6 rounded-2xl bg-gradient-to-br from-slate-900 to-slate-950 text-white border border-slate-800 space-y-4 shadow-md">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <span className="text-[10px] font-extrabold text-orange-400 uppercase tracking-widest flex items-center gap-1.5">
+                  <Camera size={13} /> Core Verification Protocol
+                </span>
+                <h3 className="text-lg font-black text-white mt-0.5">
+                  Direct In-App Camera & Real GPS Capture
+                </h3>
+                <p className="text-xs text-slate-400 mt-1">
+                  Photos must be captured directly on-site inside Camtrust to record phone GPS coordinates and certified timestamp.
+                </p>
+              </div>
+
               <button
                 type="button"
-                onClick={() => fileInputRef.current?.click()}
-                className="text-[11px] font-semibold text-emerald-600 hover:text-emerald-700 flex items-center gap-1"
+                onClick={() => setIsCameraModalOpen(true)}
+                className="px-5 py-3 bg-orange-500 hover:bg-orange-600 active:scale-95 text-white font-extrabold text-sm rounded-xl shadow-lg shadow-orange-500/25 transition flex items-center justify-center gap-2 shrink-0 cursor-pointer"
               >
-                <MapPin size={12} />
-                {locationLoading ? 'Acquiring location...' : locationInfo ? 'Location acquired' : 'Get Location'}
+                <Camera size={18} />
+                <span>📷 CAPTURE SITE EVIDENCE</span>
               </button>
             </div>
+
+            {/* Recorded Evidence Preview List */}
+            {recordedEvidence.length > 0 && (
+              <div className="pt-3 border-t border-slate-800">
+                <div className="text-xs font-bold text-slate-300 uppercase tracking-wider mb-3">
+                  Recorded Evidence for this Project ({recordedEvidence.length})
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  {recordedEvidence.slice(0, 4).map((item, idx) => (
+                    <div
+                      key={item.id || idx}
+                      className="rounded-xl overflow-hidden bg-slate-800 border border-slate-700 group relative"
+                    >
+                      <div className="aspect-video bg-black flex items-center justify-center overflow-hidden">
+                        <img
+                          src={item.photoUrl}
+                          alt="Evidence"
+                          className="w-full h-full object-cover group-hover:scale-105 transition"
+                        />
+                      </div>
+                      <div className="p-2 text-[10px] space-y-0.5">
+                        <div className="font-bold text-white truncate">{item.description || 'Site photo'}</div>
+                        <div className="text-emerald-400 font-semibold flex items-center gap-0.5">
+                          <MapPin size={9} /> GPS ✓ Recorded
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
-          {/* Hidden File Inputs */}
-          <input
-            type="file"
-            ref={fileInputRef}
-            onChange={handlePhotoCapture}
-            accept="image/*"
-            multiple
-            className="hidden"
-          />
-          <input
-            type="file"
-            ref={cameraInputRef}
-            onChange={handlePhotoCapture}
-            accept="image/*"
-            capture="environment"
-            className="hidden"
-          />
+          {/* Work Breakdown Inputs */}
+          <div className="space-y-4">
+            <h3 className="text-sm font-extrabold text-gray-900 uppercase tracking-wider border-l-3 border-emerald-500 pl-2">
+              Progress & Work Details Breakdown
+            </h3>
 
-          {/* Photo Previews */}
-          {photos.length > 0 && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
-              {photos.map((img, idx) => (
-                <div key={idx} className="relative rounded-2xl overflow-hidden bg-gray-100 group border border-gray-200 shadow-sm aspect-video">
-                  <img src={img} alt="Evidence thumbnail" className="w-full h-full object-cover" />
-                  <button
-                    type="button"
-                    onClick={() => handleRemovePhoto(idx)}
-                    className="absolute top-2 right-2 p-1.5 bg-orange-600/85 text-white rounded-xl shadow-md opacity-90 hover:opacity-100 transition"
-                    title="Remove Photo"
-                  >
-                    <X size={15} />
-                  </button>
-                </div>
-              ))}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-bold text-emerald-700 uppercase tracking-wider mb-1.5">
+                  ✓ Work Completed
+                </label>
+                <textarea
+                  rows={3}
+                  value={workCompleted}
+                  onChange={(e) => setWorkCompleted(e.target.value)}
+                  placeholder="e.g., Completed footing concrete pour and rebar grid tying..."
+                  className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-xs sm:text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-amber-700 uppercase tracking-wider mb-1.5">
+                  ⏳ Work In Progress
+                </label>
+                <textarea
+                  rows={3}
+                  value={workInProgress}
+                  onChange={(e) => setWorkInProgress(e.target.value)}
+                  placeholder="e.g., Installing formwork for ground floor columns and conduits..."
+                  className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-xs sm:text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                />
+              </div>
             </div>
-          )}
 
-          {/* Upload Buttons */}
-          <div className="flex gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-bold text-blue-700 uppercase tracking-wider mb-1.5">
+                  📋 Work Remaining on Milestone
+                </label>
+                <textarea
+                  rows={3}
+                  value={workRemaining}
+                  onChange={(e) => setWorkRemaining(e.target.value)}
+                  placeholder="e.g., Concrete curing inspection, slump testing, and backfilling..."
+                  className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-xs sm:text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-purple-700 uppercase tracking-wider mb-1.5">
+                  🔍 Site Observations & Materials
+                </label>
+                <textarea
+                  rows={3}
+                  value={observations}
+                  onChange={(e) => setObservations(e.target.value)}
+                  placeholder="e.g., High-grade cement utilized. Aggregate distribution conforms to specs..."
+                  className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-xs sm:text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-bold text-red-700 uppercase tracking-wider mb-1.5">
+                  ⚠️ Problems / Issues Encountered (Optional)
+                </label>
+                <textarea
+                  rows={2}
+                  value={issues}
+                  onChange={(e) => setIssues(e.target.value)}
+                  placeholder="e.g., Minor ground water seepage during deep excavation..."
+                  className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-xs sm:text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-teal-700 uppercase tracking-wider mb-1.5">
+                  💡 Engineer Recommendations (Optional)
+                </label>
+                <textarea
+                  rows={2}
+                  value={recommendations}
+                  onChange={(e) => setRecommendations(e.target.value)}
+                  placeholder="e.g., Extend water curing period by 48 hours for optimal strength..."
+                  className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-xs sm:text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Action Buttons */}
+          <div className="pt-4 border-t border-gray-100 flex flex-col sm:flex-row items-center justify-between gap-3">
             <button
               type="button"
-              onClick={() => fileInputRef.current?.click()}
-              className="flex-1 border-2 border-dashed border-gray-200 hover:border-emerald-500 rounded-2xl p-4 text-center bg-gray-50/50 hover:bg-emerald-50/20 cursor-pointer transition flex flex-col items-center justify-center gap-2"
+              onClick={handlePreviewCurrentReport}
+              className="w-full sm:w-auto px-5 py-3 rounded-xl border border-gray-300 text-gray-700 font-bold text-xs hover:bg-gray-50 transition flex items-center justify-center gap-2"
             >
-              {isCapturing ? (
-                <div className="flex flex-col items-center gap-2">
-                  <Loader2 className="w-6 h-6 animate-spin text-emerald-600" />
-                  <span className="text-xs font-bold text-emerald-700">Processing photo...</span>
-                </div>
-              ) : (
-                <>
-                  <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center">
-                    <Camera size={20} />
-                  </div>
-                  <div className="text-xs font-bold text-gray-900">Upload Photos</div>
-                  <div className="text-[10px] text-gray-400">From gallery</div>
-                </>
-              )}
+              <Eye size={15} />
+              <span>Preview Official Report (PDF Layout)</span>
             </button>
 
             <button
-              type="button"
-              onClick={() => cameraInputRef.current?.click()}
-              className="flex-1 border-2 border-dashed border-gray-200 hover:border-emerald-500 rounded-2xl p-4 text-center bg-gray-50/50 hover:bg-emerald-50/20 cursor-pointer transition flex flex-col items-center justify-center gap-2"
+              type="submit"
+              disabled={submitting}
+              className="w-full sm:w-auto px-8 py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-sm rounded-xl shadow-lg shadow-emerald-600/25 transition disabled:opacity-50 flex items-center justify-center gap-2"
             >
-              {isCapturing ? (
-                <div className="flex flex-col items-center gap-2">
-                  <Loader2 className="w-6 h-6 animate-spin text-emerald-600" />
-                  <span className="text-xs font-bold text-emerald-700">Processing...</span>
-                </div>
+              {submitting ? (
+                <>
+                  <Loader2 size={16} className="animate-spin" /> Submitting & Generating Report...
+                </>
               ) : (
                 <>
-                  <div className="w-10 h-10 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center">
-                    <Camera size={20} />
-                  </div>
-                  <div className="text-xs font-bold text-gray-900">Take Photo</div>
-                  <div className="text-[10px] text-gray-400">Use camera</div>
+                  <ShieldCheck size={18} /> Submit Progress & Generate Official Report
                 </>
               )}
             </button>
           </div>
-
-          {locationInfo && (
-            <div className="mt-2 flex items-center gap-1 text-[10px] text-gray-500">
-              <MapPin size={10} />
-              <span>Location: {formatLocationForWatermark(locationInfo)}</span>
-            </div>
-          )}
         </div>
-
-        <div>
-          <label className="block text-xs font-bold text-gray-800 uppercase tracking-wider mb-2">
-            Site Notes & Observations
-          </label>
-          <textarea
-            rows={4}
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            placeholder="Document structural inspection, materials, curing status..."
-            className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
-          />
-        </div>
-
-        <button
-          type="submit"
-          disabled={submitting}
-          className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-sm rounded-xl shadow-lg shadow-emerald-600/25 transition disabled:opacity-50"
-        >
-          {submitting ? 'Submitting...' : 'Submit Verified Progress Update'}
-        </button>
       </form>
+
+      {/* In-App Camera Modal */}
+      <CameraEvidenceModal
+        isOpen={isCameraModalOpen}
+        onClose={() => setIsCameraModalOpen(false)}
+        projectId={selectedProjectId}
+        projectTitle={currentProject?.title || 'Construction Project'}
+        milestones={milestones}
+        defaultMilestoneId={selectedMilestoneId}
+        onEvidenceSubmitted={handleEvidenceCaptured}
+      />
+
+      {/* Report Preview Modal */}
+      <ReportViewerModal
+        isOpen={isViewerModalOpen}
+        onClose={() => setIsViewerModalOpen(false)}
+        reportData={previewReportData}
+      />
     </div>
   );
 };

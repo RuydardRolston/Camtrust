@@ -10,7 +10,6 @@ import {
   FileText,
   Download,
   Trash2,
-  UploadCloud,
   Loader2
 } from 'lucide-react';
 import projectService from '../../services/projectService';
@@ -33,7 +32,6 @@ export interface Project {
 
 export const DocumentsView: React.FC = () => {
   const [documents, setDocuments] = useState<Document[]>([]);
-  const [projects, setProjects] = useState<Project[]>([]);
   const [selectedProjectId, setSelectedProjectId] = useState<number>(0);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -55,9 +53,9 @@ export const DocumentsView: React.FC = () => {
     try {
       setLoading(true);
       const projectsData = await projectService.getMyProjects();
-      setProjects(projectsData.projects || []);
-      if (projectsData.projects?.length > 0 && !selectedProjectId) {
-        setSelectedProjectId(projectsData.projects[0].id);
+      const projectList = Array.isArray(projectsData) ? projectsData : (projectsData?.projects || []);
+      if (projectList.length > 0 && !selectedProjectId) {
+        setSelectedProjectId(projectList[0].id);
       }
     } catch (err) {
       console.error('Failed to load data:', err);
@@ -69,7 +67,8 @@ export const DocumentsView: React.FC = () => {
   const loadDocuments = async (projectId: number) => {
     try {
       const data = await documentService.getProjectDocuments(projectId);
-      setDocuments(data.documents || []);
+      const docsList = Array.isArray(data) ? data : (data?.documents || []);
+      setDocuments(docsList);
     } catch (err) {
       console.error('Failed to load documents:', err);
     }

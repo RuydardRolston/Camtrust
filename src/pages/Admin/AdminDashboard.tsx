@@ -8,15 +8,11 @@ import {
   Users,
   UserCheck,
   FolderKanban,
-  FileText,
   Camera,
-  Clock
 } from 'lucide-react';
 import adminService from '../../services/adminService';
 import projectService from '../../services/projectService';
 import verificationService from '../../services/verificationService';
-import documentService from '../../services/documentService';
-import evidenceService from '../../services/evidenceService';
 
 export interface AdminDashboardProps {
   onNavigateTab: (tabId: string) => void;
@@ -41,17 +37,17 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigateTab })
 
   const loadStats = async () => {
     try {
-      const [statsRes, projectsRes, verificationsRes, documentsRes, evidenceRes] = await Promise.all([
+      const [statsRes, projectsRes, verificationsRes] = await Promise.all([
         adminService.getPlatformStats(),
         projectService.getAllProjects(),
         verificationService.getPendingVerifications(),
-        documentService.getAllDocuments(),
-        evidenceService.getAllEvidence(),
       ]);
+      const projectsList = Array.isArray(projectsRes) ? projectsRes : (projectsRes?.projects || []);
+      const verificationsList = Array.isArray(verificationsRes) ? verificationsRes : (verificationsRes?.verifications || []);
       setStats({
         ...statsRes.stats,
-        totalProjects: projectsRes.projects?.length || 0,
-        pendingVerifications: verificationsRes.verifications?.length || 0,
+        totalProjects: projectsList.length,
+        pendingVerifications: verificationsList.length,
       });
     } catch (err) {
       console.error('Failed to load admin stats:', err);

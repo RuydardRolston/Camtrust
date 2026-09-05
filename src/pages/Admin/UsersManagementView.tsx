@@ -22,6 +22,7 @@ interface DisplayUser extends User {
   status?: string;
   joinedDate?: string;
   verificationStatus?: string;
+  verified?: boolean;
 }
 
 export const UsersManagementView: React.FC = () => {

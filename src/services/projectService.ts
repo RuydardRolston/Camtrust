@@ -23,7 +23,7 @@ export const projectService = {
     return response.data;
   },
 
-  getMyProjects: async (): Promise<any[]> => {
+  getMyProjects: async (): Promise<any> => {
     const response = await api.get('/projects/my');
     return response.data;
   },
@@ -33,7 +33,7 @@ export const projectService = {
     return response.data;
   },
 
-  getAllProjects: async (): Promise<any[]> => {
+  getAllProjects: async (): Promise<any> => {
     const response = await api.get('/projects/all');
     return response.data;
   },

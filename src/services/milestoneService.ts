@@ -25,14 +25,14 @@ export const milestoneService = {
     return response.data;
   },
 
-  getMilestones: async (projectId: string | number): Promise<any[]> => {
+  getMilestones: async (projectId: string | number): Promise<any> => {
     const response = await api.get('/milestones', {
       params: { projectId },
     });
     return response.data;
   },
 
-  getMyMilestones: async (): Promise<any[]> => {
+  getMyMilestones: async (): Promise<any> => {
     const response = await api.get('/milestones/my');
     return response.data;
   },
