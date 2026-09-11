@@ -36,7 +36,9 @@ export const verificationService = {
       formData.append('verificationId', String(verificationId));
     }
     const response = await api.post(`/verifications/documents`, formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
+      headers: {
+        'Content-Type': undefined,
+      },
     });
     return response.data;
   },

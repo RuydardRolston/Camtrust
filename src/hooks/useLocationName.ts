@@ -19,7 +19,7 @@ export const useLocationName = (
   const mountedRef = useRef(true);
 
   const resolveLocation = useCallback(async () => {
-    if (!lat || !lng) {
+    if (lat === null || lat === undefined || lng === null || lng === undefined) {
       setLocationName('GPS Verified on Site');
       return;
     }

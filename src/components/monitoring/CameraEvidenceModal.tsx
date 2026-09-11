@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   Camera,
   MapPin,
@@ -49,6 +49,7 @@ export const CameraEvidenceModal: React.FC<CameraEvidenceModalProps> = ({
   // Captured photo preview state
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
   const [capturedBlob, setCapturedBlob] = useState<Blob | null>(null);
+  const [resolvedLocationForWatermark, setResolvedLocationForWatermark] = useState<string | null>(null);
 
   // Real Geolocation state
   const [gpsLatitude, setGpsLatitude] = useState<number | null>(null);
@@ -107,7 +108,7 @@ export const CameraEvidenceModal: React.FC<CameraEvidenceModalProps> = ({
       },
       {
         enableHighAccuracy: true,
-        timeout: 15000,
+        timeout: 6000,
         maximumAge: 0,
       }
     );
@@ -160,26 +161,49 @@ export const CameraEvidenceModal: React.FC<CameraEvidenceModalProps> = ({
     setFacingMode((prev) => (prev === 'environment' ? 'user' : 'environment'));
   };
 
-  // Stamp metadata on canvas and take photo
-  const takeSnapshot = () => {
+   // Stamp metadata on canvas and take photo
+  const takeSnapshot = async () => {
     if (!videoRef.current) return;
     const video = videoRef.current;
     const canvas = document.createElement('canvas');
-    canvas.width = video.videoWidth || 1280;
-    canvas.height = video.videoHeight || 720;
+    // Use the full resolution of the video for highest quality
+    canvas.width = video.videoWidth || 1920;
+    canvas.height = video.videoHeight || 1080;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    // Draw frame
+    // Draw frame with high quality
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    ctx.filter = 'none';
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
     const now = new Date();
     setCapturedTimestamp(now);
 
-    // Apply Camtrust Site Evidence Watermark
-    applyWatermark(ctx, canvas.width, canvas.height, now);
+    // Ensure location name is resolved before stamping
+    let locationForStamp = resolvedLocationName;
+    if (!locationForStamp && gpsLatitude && gpsLongitude) {
+      // Directly resolve location if hook hasn't done it yet
+      try {
+        const { getLocationName } = await import('../../utils/locationService');
+        const info = await getLocationName(gpsLatitude, gpsLongitude);
+        locationForStamp = info.displayName || info.city || info.country ||
+          `${gpsLatitude.toFixed(6)}, ${gpsLongitude.toFixed(6)}`;
+      } catch {
+        locationForStamp = `${gpsLatitude.toFixed(6)}, ${gpsLongitude.toFixed(6)}`;
+      }
+    }
 
-    const dataUrl = canvas.toDataURL('image/jpeg', 0.92);
+    locationForStamp = locationForStamp || resolvedLocationForWatermark ||
+      (gpsLatitude && gpsLongitude ? `${gpsLatitude.toFixed(6)}, ${gpsLongitude.toFixed(6)}` : 'GPS: Pending acquisition');
+    setResolvedLocationForWatermark(locationForStamp);
+
+    // Apply Camtrust Site Evidence Watermark with high quality
+    applyWatermark(ctx, canvas.width, canvas.height, now, locationForStamp);
+
+    // Use high quality JPEG (0.95 for best quality)
+    const dataUrl = canvas.toDataURL('image/jpeg', 0.95);
     setCapturedImage(dataUrl);
 
     canvas.toBlob(
@@ -187,13 +211,13 @@ export const CameraEvidenceModal: React.FC<CameraEvidenceModalProps> = ({
         if (blob) setCapturedBlob(blob);
       },
       'image/jpeg',
-      0.92
+      0.95
     );
 
     stopCamera();
   };
 
-  const handleFallbackFileCapture = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFallbackFileCapture = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -205,17 +229,23 @@ export const CameraEvidenceModal: React.FC<CameraEvidenceModalProps> = ({
       const img = new Image();
       img.onload = () => {
         const canvas = document.createElement('canvas');
+        // Use full image resolution for best quality
         canvas.width = img.width;
         canvas.height = img.height;
         const ctx = canvas.getContext('2d');
         if (ctx) {
+          ctx.imageSmoothingEnabled = true;
+          ctx.imageSmoothingQuality = 'high';
           ctx.drawImage(img, 0, 0);
-          applyWatermark(ctx, canvas.width, canvas.height, now);
-          const stampedUrl = canvas.toDataURL('image/jpeg', 0.92);
+          const locationForStamp = resolvedLocationName || resolvedLocationForWatermark ||
+            (gpsLatitude && gpsLongitude ? `${gpsLatitude.toFixed(6)}, ${gpsLongitude.toFixed(6)}` : 'GPS: Pending acquisition');
+          setResolvedLocationForWatermark(locationForStamp);
+          applyWatermark(ctx, canvas.width, canvas.height, now, locationForStamp);
+          const stampedUrl = canvas.toDataURL('image/jpeg', 0.95);
           setCapturedImage(stampedUrl);
           canvas.toBlob((blob) => {
             if (blob) setCapturedBlob(blob);
-          }, 'image/jpeg', 0.92);
+          }, 'image/jpeg', 0.95);
         }
       };
       img.src = event.target?.result as string;
@@ -223,20 +253,30 @@ export const CameraEvidenceModal: React.FC<CameraEvidenceModalProps> = ({
     reader.readAsDataURL(file);
   };
 
-  const applyWatermark = (ctx: CanvasRenderingContext2D, width: number, height: number, date: Date) => {
-    const bannerHeight = Math.max(90, Math.round(height * 0.14));
-    const padding = 20;
+  const applyWatermark = useCallback((
+    ctx: CanvasRenderingContext2D,
+    width: number,
+    height: number,
+    date: Date,
+    locationDisplay: string
+  ) => {
+    const bannerHeight = Math.max(120, Math.round(height * 0.16));
+    const padding = Math.max(24, Math.round(width * 0.02));
 
-    // Gradient banner at bottom
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+
+    // Semi-transparent gradient banner at bottom
     const gradient = ctx.createLinearGradient(0, height - bannerHeight, 0, height);
-    gradient.addColorStop(0, 'rgba(15, 23, 42, 0.88)');
+    gradient.addColorStop(0, 'rgba(15, 23, 42, 0.90)');
+    gradient.addColorStop(0.5, 'rgba(15, 23, 42, 0.95)');
     gradient.addColorStop(1, 'rgba(15, 23, 42, 0.98)');
     ctx.fillStyle = gradient;
     ctx.fillRect(0, height - bannerHeight, width, bannerHeight);
 
     // Orange accent bar
     ctx.fillStyle = '#f97316';
-    ctx.fillRect(0, height - bannerHeight, width, 4);
+    ctx.fillRect(0, height - bannerHeight, width, 5);
 
     const selectedMilestone = milestones.find((m) => m.id === selectedMilestoneId);
     const msLabel = selectedMilestone?.label || 'Milestone';
@@ -244,27 +284,36 @@ export const CameraEvidenceModal: React.FC<CameraEvidenceModalProps> = ({
     const dateStr = date.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
     const timeStr = date.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 
+    // CAMTRUST header
     ctx.fillStyle = '#f97316';
-    ctx.font = `bold ${Math.max(14, Math.round(width * 0.018))}px sans-serif`;
-    ctx.fillText('CAMTRUST SITE EVIDENCE', padding, height - bannerHeight + 28);
+    ctx.font = `bold ${Math.max(16, Math.round(width * 0.02))}px sans-serif`;
+    ctx.textBaseline = 'top';
+    ctx.fillText('CAMTRUST SITE EVIDENCE', padding, height - bannerHeight + 16);
 
+    // Project and milestone
     ctx.fillStyle = '#ffffff';
-    ctx.font = `bold ${Math.max(12, Math.round(width * 0.015))}px sans-serif`;
-    ctx.fillText(`Project: ${projectTitle} | Milestone: ${msLabel}`, padding, height - bannerHeight + 52);
+    ctx.font = `bold ${Math.max(14, Math.round(width * 0.016))}px sans-serif`;
+    ctx.fillText(`Project: ${projectTitle} | Milestone: ${msLabel}`, padding, height - bannerHeight + 44);
 
+    // Location, engineer, timestamp
     ctx.fillStyle = '#cbd5e1';
-    ctx.font = `${Math.max(11, Math.round(width * 0.013))}px sans-serif`;
-    const locationDisplay = resolvedLocationName || (gpsLatitude && gpsLongitude ? `${gpsLatitude.toFixed(4)}, ${gpsLongitude.toFixed(4)}` : 'GPS: Pending acquisition');
+    ctx.font = `${Math.max(13, Math.round(width * 0.014))}px sans-serif`;
     const gpsText = gpsLatitude && gpsLongitude
       ? `Location: ${locationDisplay} (✓ Recorded)`
-      : `GPS: Pending acquisition`;
-
+      : (gpsStatus === 'denied' ? 'GPS: Permission Denied' : 'GPS: Pending acquisition');
     ctx.fillText(
       `Captured by: ${engName} | ${dateStr} ${timeStr} | ${gpsText}`,
       padding,
-      height - bannerHeight + 74
+      height - bannerHeight + 70
     );
-  };
+
+    // Verified badge
+    if (gpsStatus === 'recorded') {
+      ctx.fillStyle = '#10b91e';
+      ctx.font = `bold ${Math.max(12, Math.round(width * 0.012))}px sans-serif`;
+      ctx.fillText('✓ VERIFIED GPS COORDINATES', width - padding - 200, height - bannerHeight + 14);
+    }
+  }, [milestones, selectedMilestoneId, projectTitle, user?.fullName, gpsStatus]);
 
   const handleRetake = () => {
     setCapturedImage(null);
@@ -361,7 +410,7 @@ export const CameraEvidenceModal: React.FC<CameraEvidenceModalProps> = ({
               <MapPin size={16} className="shrink-0" />
               {gpsStatus === 'recorded' && (
                 <span>
-                  Real GPS Location: <strong>{resolvedLocationName || `${gpsLatitude?.toFixed(4)}, ${gpsLongitude?.toFixed(4)}`}</strong> (±{gpsAccuracy}m)
+                  Real GPS Location: <strong>{resolvedLocationName || resolvedLocationForWatermark || `${gpsLatitude?.toFixed(6)}, ${gpsLongitude?.toFixed(6)}`}</strong> (±{gpsAccuracy}m)
                 </span>
               )}
               {gpsStatus === 'acquiring' && (

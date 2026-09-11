@@ -49,19 +49,28 @@ export const clearAuthSession = (): void => {
 
 const api = axios.create({
   baseURL: BASE_URL,
+  timeout: 15000,
   headers: {
     'Content-Type': 'application/json',
+    Accept: 'application/json',
   },
-  timeout: 15000,
 });
 
-// Request interceptor: Attach JWT token if present
+// Request interceptor: Attach JWT token if present and handle multipart properly
 api.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
     const token = getAuthToken();
     if (token && config.headers) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+
+    // Handle FormData - let axios set the multipart boundary automatically
+    if (config.data instanceof FormData) {
+      if (config.headers && typeof config.headers === 'object') {
+        delete (config.headers as Record<string, string>)['Content-Type'];
+      }
+    }
+
     return config;
   },
   (error) => Promise.reject(error)

@@ -3,7 +3,9 @@ import api from './api';
 export const evidenceService = {
   uploadEvidence: async (formData: FormData): Promise<any> => {
     const response = await api.post('/evidence/upload', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
+      headers: {
+        'Content-Type': undefined,
+      },
     });
     return response.data;
   },

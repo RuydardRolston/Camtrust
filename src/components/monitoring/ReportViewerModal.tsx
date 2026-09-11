@@ -316,7 +316,7 @@ const LocationText: React.FC<{ lat: number | null | undefined; lng: number | nul
       {loading ? (
         <span className="text-[10px] font-bold text-slate-500">Resolving location...</span>
       ) : (
-        <span>Location: {locationName || (lat && lng ? `${lat.toFixed(4)}, ${lng.toFixed(4)}` : 'Recorded on Device')}</span>
+        <span>Location: {locationName || (lat && lng ? `${lat.toFixed(6)}, ${lng.toFixed(6)}` : 'Recorded on Device')}</span>
       )}
     </div>
   );
