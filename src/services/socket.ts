@@ -2,8 +2,9 @@ import { io, Socket } from 'socket.io-client';
 
 const SOCKET_URL =
   (typeof import.meta !== 'undefined' &&
+    import.meta.env?.MODE === 'production' &&
     import.meta.env?.VITE_SOCKET_URL) ||
-  (typeof window !== 'undefined' && window.location.origin);
+  (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:5174');
 
 let socketInstance: Socket | null = null;
 
