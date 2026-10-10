@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { FaHardHat, FaBars, FaTimes, FaSun, FaMoon } from 'react-icons/fa';
+import { FaHardHat, FaBars, FaTimes, FaSun, FaMoon, FaColumns } from 'react-icons/fa';
 import { useTheme } from '../context/ThemeContext';
+import useAuth from '../hooks/useAuth';
 
 export const Navbar: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
   const { theme, toggleTheme } = useTheme();
+  const { isAuthenticated, user } = useAuth();
 
   return (
     <header className="bg-slate-950/95 backdrop-blur-md shadow-lg shadow-orange-500/5 sticky top-0 z-50 border-b border-slate-800/50">
@@ -39,23 +41,36 @@ export const Navbar: React.FC = () => {
           <div className="hidden md:flex items-center gap-4">
             <button
               onClick={toggleTheme}
-              className="p-2 rounded-lg bg-slate-800/50 hover:bg-slate-700/50 text-slate-300 hover:text-white transition"
+              className="p-2 rounded-lg bg-slate-800/50 hover:bg-slate-700/50 text-slate-300 hover:text-white transition cursor-pointer"
               title={`Switch to ${theme === 'light' ? 'dark' : 'light'} mode`}
             >
               {theme === 'light' ? <FaMoon className="text-lg" /> : <FaSun className="text-lg" />}
             </button>
-            <Link
-              to="/login"
-              className="px-6 py-2 text-slate-300 font-medium hover:text-white transition"
-            >
-              Login
-            </Link>
-            <Link
-              to="/register"
-              className="px-6 py-2 bg-orange-500 hover:bg-orange-600 text-white font-medium rounded-lg transition shadow-lg shadow-orange-500/30"
-            >
-              Get Started
-            </Link>
+
+            {isAuthenticated ? (
+              <Link
+                to="/workspace"
+                className="px-5 py-2 bg-orange-500 hover:bg-orange-600 text-white font-bold rounded-lg transition shadow-lg shadow-orange-500/30 flex items-center gap-2 text-sm"
+              >
+                <FaColumns className="text-xs" />
+                <span>Go to Dashboard ({user?.fullName ? user.fullName.split(' ')[0] : 'Workspace'})</span>
+              </Link>
+            ) : (
+              <>
+                <Link
+                  to="/login"
+                  className="px-6 py-2 text-slate-300 font-medium hover:text-white transition"
+                >
+                  Login
+                </Link>
+                <Link
+                  to="/register"
+                  className="px-6 py-2 bg-orange-500 hover:bg-orange-600 text-white font-medium rounded-lg transition shadow-lg shadow-orange-500/30"
+                >
+                  Get Started
+                </Link>
+              </>
+            )}
           </div>
 
           {/* Mobile Menu Button */}
@@ -105,7 +120,7 @@ export const Navbar: React.FC = () => {
             <div className="pt-4 space-y-2 border-t border-slate-800">
               <button
                 onClick={toggleTheme}
-                className="w-full flex items-center justify-center gap-2 px-6 py-2 rounded-lg bg-slate-800/50 hover:bg-slate-700/50 text-slate-300 hover:text-white transition font-medium"
+                className="w-full flex items-center justify-center gap-2 px-6 py-2 rounded-lg bg-slate-800/50 hover:bg-slate-700/50 text-slate-300 hover:text-white transition font-medium cursor-pointer"
               >
                 {theme === 'light' ? (
                   <>
@@ -119,20 +134,33 @@ export const Navbar: React.FC = () => {
                   </>
                 )}
               </button>
-              <Link
-                to="/login"
-                className="block px-6 py-2 text-slate-300 font-medium hover:text-white transition"
-                onClick={() => setIsOpen(false)}
-              >
-                Login
-              </Link>
-              <Link
-                to="/register"
-                className="block px-6 py-2 bg-orange-500 hover:bg-orange-600 text-white font-medium rounded-lg transition text-center shadow-lg shadow-orange-500/30"
-                onClick={() => setIsOpen(false)}
-              >
-                Get Started
-              </Link>
+
+              {isAuthenticated ? (
+                <Link
+                  to="/workspace"
+                  className="block px-6 py-2.5 bg-orange-500 hover:bg-orange-600 text-white font-bold rounded-lg transition text-center shadow-lg shadow-orange-500/30"
+                  onClick={() => setIsOpen(false)}
+                >
+                  Go to Dashboard
+                </Link>
+              ) : (
+                <>
+                  <Link
+                    to="/login"
+                    className="block px-6 py-2 text-slate-300 font-medium hover:text-white transition"
+                    onClick={() => setIsOpen(false)}
+                  >
+                    Login
+                  </Link>
+                  <Link
+                    to="/register"
+                    className="block px-6 py-2 bg-orange-500 hover:bg-orange-600 text-white font-medium rounded-lg transition text-center shadow-lg shadow-orange-500/30"
+                    onClick={() => setIsOpen(false)}
+                  >
+                    Get Started
+                  </Link>
+                </>
+              )}
             </div>
           </nav>
         )}

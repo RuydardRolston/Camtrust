@@ -21,6 +21,12 @@ export interface UpdateUserData {
   email?: string;
   role?: string;
   password?: string;
+  phone?: string;
+  address?: string;
+  specialty?: string;
+  status?: string;
+  employeeId?: string;
+  verified?: boolean;
 }
 
 export const userService = {
@@ -30,6 +36,22 @@ export const userService = {
   getAllUsers: async (): Promise<User[]> => {
     const response = await api.get<UsersResponse>('/users/get_All_Users');
     return response.data.users || [];
+  },
+
+  /**
+   * Admin: create Owner, Professional, or Administrator accounts
+   */
+  createUser: async (data: {
+    fullName: string;
+    email: string;
+    role: string;
+    password?: string;
+    phone?: string;
+    specialty?: string;
+    status?: string;
+  }): Promise<any> => {
+    const response = await api.post('/users/admin-create', data);
+    return response.data;
   },
 
   /**
@@ -46,6 +68,17 @@ export const userService = {
   updateUser: async (id: string | number, data: UpdateUserData): Promise<User> => {
     const response = await api.put<SingleUserResponse>(`/users/${id}`, data);
     return response.data.user;
+  },
+
+  /**
+   * Toggle user verification status (Admin action)
+   */
+  toggleVerification: async (id: string | number, verified?: boolean): Promise<any> => {
+    const response = await api.put<{ success: boolean; message: string; user: User }>(
+      `/users/${id}/verification`,
+      { verified }
+    );
+    return response.data;
   },
 
   /**

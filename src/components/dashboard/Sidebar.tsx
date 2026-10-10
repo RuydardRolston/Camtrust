@@ -18,10 +18,10 @@ import {
   ShieldCheck,
   UserCheck,
   UploadCloud,
+  Camera,
   LogOut,
   HardHat,
-  X,
-  Camera
+  X
 } from 'lucide-react';
 import useAuth from '../../hooks/useAuth';
 import { useNotifications } from '../../context/NotificationContext';
@@ -70,6 +70,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'projects', label: 'Projects', icon: FolderKanban },
     { id: 'milestones', label: 'Milestones', icon: CheckCircle2 },
+    { id: 'evidence', label: 'Site Evidence', icon: UploadCloud },
     { id: 'reports', label: 'Reports', icon: FileText },
     { id: 'documents', label: 'Documents', icon: FolderLock },
     { id: 'team', label: 'Team', icon: Users },
@@ -84,20 +85,25 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const engineerNav = [
     { id: 'dashboard', label: 'Engineer Dashboard', icon: LayoutDashboard },
     { id: 'projects', label: 'Assigned Projects', icon: FolderKanban },
+    { id: 'milestones', label: 'Milestones', icon: CheckCircle2 },
     { id: 'update-progress', label: 'Update Progress', icon: UploadCloud },
+    { id: 'evidence', label: 'Site Evidence', icon: Camera },
     { id: 'reports', label: 'Site Reports', icon: FileText },
     { id: 'documents', label: 'Documents', icon: FolderLock },
     { id: 'messages', label: 'Messages', icon: MessageSquare },
+    { id: 'notifications', label: 'Notifications', icon: Bell },
     { id: 'settings', label: 'Settings', icon: Settings },
   ];
 
   const adminNav = [
     { id: 'dashboard', label: 'Admin Dashboard', icon: LayoutDashboard },
     { id: 'users-mgmt', label: 'Users Management', icon: Users },
-    { id: 'verification', label: 'Professionals Verification', icon: UserCheck },
+    { id: 'verification', label: 'Actors Verification (KYC)', icon: UserCheck },
     { id: 'projects-mgmt', label: 'Projects Management', icon: ShieldCheck },
+    { id: 'evidence', label: 'Site Evidence', icon: UploadCloud },
     { id: 'documents', label: 'Documents', icon: FileText },
-    { id: 'evidence', label: 'Site Evidence', icon: Camera },
+    { id: 'messages', label: 'Messages', icon: MessageSquare },
+    { id: 'notifications', label: 'Notifications', icon: Bell },
     { id: 'settings', label: 'Settings', icon: Settings },
   ];
 

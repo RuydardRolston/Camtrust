@@ -64,6 +64,7 @@ export const ProgressReportsView: React.FC = () => {
 
   // Viewer Modal
   const [viewerData, setViewerData] = useState<ProgressReportData | null>(null);
+  const [viewerReportId, setViewerReportId] = useState<number | null>(null);
   const [isViewerOpen, setIsViewerOpen] = useState(false);
 
   useEffect(() => {
@@ -143,6 +144,7 @@ export const ProgressReportsView: React.FC = () => {
       };
 
       setViewerData(data);
+      setViewerReportId(report.id);
       setIsViewerOpen(true);
     } catch (err) {
       console.error('Failed to open report:', err);
@@ -309,6 +311,7 @@ export const ProgressReportsView: React.FC = () => {
         isOpen={isViewerOpen}
         onClose={() => setIsViewerOpen(false)}
         reportData={viewerData}
+        reportId={viewerReportId}
       />
     </div>
   );

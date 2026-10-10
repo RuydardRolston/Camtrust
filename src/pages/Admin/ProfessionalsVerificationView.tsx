@@ -1,7 +1,7 @@
 /**
- * CamTrust - Professionals Verification View (Administrator)
- * Admin reviews Engineer KYC verification documents, inspects automated AI KYC analysis
- * recommendations, and performs Approve / Reject / Request New Document actions.
+ * CamTrust - Actors Verification & KYC View (Administrator)
+ * Admin reviews verification documents for BOTH Engineers and Project Owners,
+ * inspects automated KYC analysis, and grants or rejects verified status.
  */
 
 import React, { useState, useEffect } from 'react';
@@ -19,6 +19,7 @@ import {
   Sparkles,
   X,
   MessageSquare,
+  Building,
 } from 'lucide-react';
 import verificationService from '../../services/verificationService';
 import VerifiedBadge from '../../components/common/VerifiedBadge';
@@ -36,6 +37,7 @@ export interface Verification {
     fullName: string;
     email: string;
     phone?: string;
+    role?: string;
     specialty?: string;
     verified: boolean;
   };
@@ -52,6 +54,7 @@ export const ProfessionalsVerificationView: React.FC = () => {
   const [verifications, setVerifications] = useState<Verification[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [roleFilter, setRoleFilter] = useState<string>('all');
   const [loading, setLoading] = useState(true);
 
   // Detail Modal & Action states
@@ -91,7 +94,7 @@ export const ProfessionalsVerificationView: React.FC = () => {
   };
 
   const handleReject = async (id: number) => {
-    const reason = prompt('Please enter the reason for rejection (this will be sent to the engineer):');
+    const reason = prompt('Please enter the reason for rejection (this will be sent to the user):');
     if (reason === null) return;
 
     try {
@@ -119,7 +122,7 @@ export const ProfessionalsVerificationView: React.FC = () => {
       setRequestDocModalOpen(false);
       setSelectedVerification(null);
       setActionNotes('');
-      alert('Document request sent to the Engineer successfully.');
+      alert('Document request sent to the user successfully.');
     } catch (err: any) {
       alert(err.message || 'Failed to request new document');
     } finally {
@@ -132,8 +135,17 @@ export const ProfessionalsVerificationView: React.FC = () => {
       v.professional?.fullName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       v.professional?.email?.toLowerCase().includes(searchTerm.toLowerCase());
 
-    if (statusFilter === 'all') return matchesSearch;
-    return matchesSearch && v.status === statusFilter;
+    const isOwner = v.professional?.role === 'property_owner';
+    const matchesRole =
+      roleFilter === 'all'
+        ? true
+        : roleFilter === 'owners'
+        ? isOwner
+        : !isOwner;
+
+    const matchesStatus = statusFilter === 'all' ? true : v.status === statusFilter;
+
+    return matchesSearch && matchesRole && matchesStatus;
   });
 
   const parseAiAnalysis = (raw: string | undefined) => {
@@ -163,60 +175,93 @@ export const ProfessionalsVerificationView: React.FC = () => {
               <UserCheck size={20} />
             </div>
             <h1 className="text-xl sm:text-2xl font-black text-gray-900 tracking-tight">
-              Construction Professionals Verification (KYC)
+              Actors Verification & KYC Control
             </h1>
           </div>
           <p className="text-xs sm:text-sm text-gray-500 mt-1">
-            Review civil engineer credentials, inspect automated KYC checks, and grant verified status.
+            Review identity & qualification documents submitted by Civil Engineers and Project Owners.
           </p>
         </div>
 
         <div className="flex items-center gap-2">
           <span className="px-3.5 py-1.5 bg-emerald-50 text-emerald-800 text-xs font-black rounded-full border border-emerald-200">
-            {verifications.filter((v) => v.status === 'Approved').length} Verified Engineers
+            {verifications.filter((v) => v.status === 'Approved').length} Verified Actors
           </span>
         </div>
       </div>
 
-      {/* Filters & Search */}
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
-        <div className="relative w-full sm:max-w-md">
+      {/* Role & Status Filter Tabs */}
+      <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
+        {/* Role Tabs */}
+        <div className="flex items-center gap-1.5 bg-white p-1 rounded-2xl border border-gray-200">
+          <button
+            onClick={() => setRoleFilter('all')}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition ${
+              roleFilter === 'all' ? 'bg-slate-900 text-white' : 'text-gray-600 hover:text-gray-900'
+            }`}
+          >
+            All Actors ({verifications.length})
+          </button>
+          <button
+            onClick={() => setRoleFilter('engineers')}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
+              roleFilter === 'engineers' ? 'bg-emerald-600 text-white' : 'text-gray-600 hover:text-gray-900'
+            }`}
+          >
+            <ShieldCheck size={14} />
+            <span>Engineers ({verifications.filter(v => v.professional?.role !== 'property_owner').length})</span>
+          </button>
+          <button
+            onClick={() => setRoleFilter('owners')}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
+              roleFilter === 'owners' ? 'bg-orange-500 text-white' : 'text-gray-600 hover:text-gray-900'
+            }`}
+          >
+            <Building size={14} />
+            <span>Project Owners ({verifications.filter(v => v.professional?.role === 'property_owner').length})</span>
+          </button>
+        </div>
+
+        {/* Search Bar */}
+        <div className="relative max-w-sm w-full">
           <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
           <input
             type="text"
-            placeholder="Search by engineer name or email..."
+            placeholder="Search by name or email..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+            className="w-full pl-10 pr-4 py-2 bg-white border border-gray-200 rounded-xl text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
           />
         </div>
+      </div>
 
-        <div className="flex items-center gap-1.5 bg-white p-1 rounded-xl border border-gray-200 overflow-x-auto w-full sm:w-auto">
-          {['all', 'Pending', 'Action Required', 'Approved', 'Rejected'].map((status) => (
-            <button
-              key={status}
-              onClick={() => setStatusFilter(status)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition whitespace-nowrap ${
-                statusFilter === status
-                  ? 'bg-slate-900 text-white'
-                  : 'text-gray-600 hover:text-gray-900'
-              }`}
-            >
-              {status === 'all' ? 'All' : status}
-            </button>
-          ))}
-        </div>
+      {/* Status Badges Filter */}
+      <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
+        {['all', 'Pending', 'Action Required', 'Approved', 'Rejected'].map((status) => (
+          <button
+            key={status}
+            onClick={() => setStatusFilter(status)}
+            className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition whitespace-nowrap border ${
+              statusFilter === status
+                ? 'bg-slate-800 text-white border-slate-800'
+                : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'
+            }`}
+          >
+            {status === 'all' ? 'All Statuses' : status}
+          </button>
+        ))}
       </div>
 
       {/* Verifications Grid */}
       {filtered.length === 0 ? (
         <div className="bg-white p-12 rounded-3xl border border-gray-100 text-center">
-          <p className="text-gray-500 text-sm">No verification requests found matching your filter.</p>
+          <p className="text-gray-500 text-sm font-bold">No verification submissions found matching your filter.</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {filtered.map((v) => {
             const analysis = parseAiAnalysis(v.aiAnalysis);
+            const isOwner = v.professional?.role === 'property_owner';
 
             return (
               <div
@@ -226,14 +271,23 @@ export const ProfessionalsVerificationView: React.FC = () => {
               >
                 <div>
                   <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <h3 className="font-extrabold text-base text-gray-900">
-                        {v.professional?.fullName || 'Civil Engineer'}
-                      </h3>
-                      <div className="text-xs text-gray-500">{v.professional?.email}</div>
-                      <div className="text-[11px] text-gray-400 mt-0.5">
-                        {v.professional?.specialty || 'Construction Professional'}
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <h3 className="font-extrabold text-base text-gray-900">
+                          {v.professional?.fullName || 'User'}
+                        </h3>
+                        <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold border ${
+                          isOwner ? 'bg-orange-50 text-orange-700 border-orange-200' : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                        }`}>
+                          {isOwner ? 'Project Owner' : 'Civil Engineer'}
+                        </span>
                       </div>
+                      <div className="text-xs text-gray-500">{v.professional?.email}</div>
+                      {v.professional?.specialty && (
+                        <div className="text-[11px] text-gray-400">
+                          {v.professional.specialty}
+                        </div>
+                      )}
                     </div>
 
                     <span
@@ -254,7 +308,7 @@ export const ProfessionalsVerificationView: React.FC = () => {
                     </span>
                   </div>
 
-                  {/* KYC AI Recommendation Summary */}
+                  {/* KYC Automated Analysis Summary */}
                   {analysis && (
                     <div className="mt-4 p-3.5 bg-slate-50 border border-slate-200 rounded-2xl space-y-1.5 text-xs">
                       <div className="flex items-center justify-between">
@@ -280,7 +334,7 @@ export const ProfessionalsVerificationView: React.FC = () => {
                   {/* Document List */}
                   <div className="mt-4 space-y-1.5">
                     <div className="text-[10px] font-extrabold text-gray-400 uppercase tracking-wider">
-                      Uploaded Documents ({v.documents?.length || 0})
+                      Uploaded KYC Documents ({v.documents?.length || 0})
                     </div>
                     {v.documents && v.documents.length > 0 ? (
                       <div className="space-y-1">
@@ -300,29 +354,27 @@ export const ProfessionalsVerificationView: React.FC = () => {
                         ))}
                       </div>
                     ) : (
-                      <p className="text-xs text-gray-400 italic">No documents uploaded yet</p>
+                      <p className="text-xs text-gray-400 italic">No documents attached</p>
                     )}
                   </div>
                 </div>
 
-                {/* Administrator Action Bar */}
+                {/* Bottom Action Bar */}
                 <div className="pt-3 border-t border-gray-100 flex items-center justify-between gap-2">
                   <span className="text-[11px] text-gray-400 font-medium">
-                    Submitted: {new Date(v.date).toLocaleDateString()}
+                    Submitted: {new Date(v.date).toLocaleDateString('en-GB')}
                   </span>
 
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setSelectedVerification(v);
-                      }}
-                      className="px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold transition"
-                    >
-                      Review KYC
-                    </button>
-                  </div>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSelectedVerification(v);
+                    }}
+                    className="px-4 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold transition"
+                  >
+                    Inspect & Verify
+                  </button>
                 </div>
               </div>
             );
@@ -338,7 +390,7 @@ export const ProfessionalsVerificationView: React.FC = () => {
               <div className="flex items-center gap-2.5">
                 <ShieldCheck size={22} className="text-emerald-600" />
                 <h3 className="text-lg font-black text-gray-900">
-                  Engineer Verification Review
+                  Verification & KYC Inspection
                 </h3>
               </div>
               <button
@@ -349,16 +401,25 @@ export const ProfessionalsVerificationView: React.FC = () => {
               </button>
             </div>
 
-            {/* Engineer Identity Details */}
+            {/* Identity Details */}
             <div className="grid grid-cols-2 gap-4 p-4 bg-gray-50 rounded-2xl border border-gray-100 text-xs">
               <div>
-                <span className="text-[10px] font-extrabold text-gray-400 uppercase">Engineer Name</span>
+                <span className="text-[10px] font-extrabold text-gray-400 uppercase">Actor Information</span>
                 <p className="text-sm font-extrabold text-gray-900">{selectedVerification.professional?.fullName}</p>
                 <p className="text-gray-500">{selectedVerification.professional?.email}</p>
+                <div className="mt-1">
+                  <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${
+                    selectedVerification.professional?.role === 'property_owner'
+                      ? 'bg-orange-50 text-orange-700 border-orange-200'
+                      : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                  }`}>
+                    {selectedVerification.professional?.role === 'property_owner' ? 'Project Owner' : 'Civil Engineer'}
+                  </span>
+                </div>
               </div>
 
               <div>
-                <span className="text-[10px] font-extrabold text-gray-400 uppercase">Current Status</span>
+                <span className="text-[10px] font-extrabold text-gray-400 uppercase">Verification Status</span>
                 <div className="mt-1">
                   {selectedVerification.status === 'Approved' ? (
                     <VerifiedBadge size="sm" />
@@ -371,12 +432,12 @@ export const ProfessionalsVerificationView: React.FC = () => {
               </div>
             </div>
 
-            {/* Automated KYC Checks Checklist */}
+            {/* KYC Automated Checklist */}
             {selectedVerification.aiAnalysis && (
               <div className="space-y-3">
                 <div className="flex items-center gap-1.5 text-xs font-black text-slate-800 uppercase tracking-wider">
                   <Sparkles size={14} className="text-orange-500" />
-                  <span>Automated KYC Document Analysis Checklist</span>
+                  <span>Automated KYC Document Checklist</span>
                 </div>
 
                 {parseAiAnalysis(selectedVerification.aiAnalysis)?.checks?.map((chk: any, idx: number) => (
@@ -401,7 +462,7 @@ export const ProfessionalsVerificationView: React.FC = () => {
             {/* Submitted Document Files */}
             <div className="space-y-3">
               <span className="text-xs font-black text-gray-900 uppercase tracking-wider">
-                Submitted Eligibility Files
+                Submitted Verification Files
               </span>
 
               {selectedVerification.documents && selectedVerification.documents.length > 0 ? (
@@ -416,7 +477,7 @@ export const ProfessionalsVerificationView: React.FC = () => {
                         <div>
                           <div className="text-xs font-bold text-gray-900">{doc.fileName}</div>
                           <div className="text-[10px] text-gray-500">
-                            {doc.documentType.replace('_', ' ')} • {new Date(doc.uploadedAt).toLocaleDateString()}
+                            {doc.documentType.replace('_', ' ')} • {new Date(doc.uploadedAt).toLocaleDateString('en-GB')}
                           </div>
                         </div>
                       </div>
@@ -428,7 +489,7 @@ export const ProfessionalsVerificationView: React.FC = () => {
                         className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-lg transition flex items-center gap-1"
                       >
                         <Download size={12} />
-                        <span>Inspect Document</span>
+                        <span>Inspect File</span>
                       </a>
                     </div>
                   ))}
@@ -438,7 +499,7 @@ export const ProfessionalsVerificationView: React.FC = () => {
               )}
             </div>
 
-            {/* Administrator Action Buttons */}
+            {/* Administrator Action Bar */}
             <div className="pt-4 border-t border-gray-100 flex flex-wrap items-center justify-between gap-3">
               <button
                 type="button"
@@ -466,7 +527,7 @@ export const ProfessionalsVerificationView: React.FC = () => {
                   className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black shadow-md shadow-emerald-600/25 transition flex items-center gap-1.5"
                 >
                   <CheckCircle2 size={15} />
-                  <span>Approve & Verify Engineer</span>
+                  <span>Approve & Verify Actor</span>
                 </button>
               </div>
             </div>
@@ -483,14 +544,14 @@ export const ProfessionalsVerificationView: React.FC = () => {
               <span>Request New Documents</span>
             </h4>
             <p className="text-xs text-gray-500">
-              Provide clear feedback to {selectedVerification.professional?.fullName} on what additional documents or clarification are needed.
+              Provide feedback to {selectedVerification.professional?.fullName} on what additional documents or clarifications are required.
             </p>
 
             <textarea
               rows={4}
               value={actionNotes}
               onChange={(e) => setActionNotes(e.target.value)}
-              placeholder="e.g., Please upload your certified degree diploma or a stamped attestation of employment from your current engineering firm."
+              placeholder="e.g., Please upload a certified National ID card scan and a stamped Land Title or Civil Engineering diploma."
               className="w-full px-3.5 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs focus:bg-white focus:outline-none focus:ring-2 focus:ring-amber-500"
             />
 
@@ -507,7 +568,7 @@ export const ProfessionalsVerificationView: React.FC = () => {
                 onClick={() => handleRequestNewDocument(selectedVerification.id)}
                 className="px-5 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-black"
               >
-                Send Request to Engineer
+                Send Request
               </button>
             </div>
           </div>

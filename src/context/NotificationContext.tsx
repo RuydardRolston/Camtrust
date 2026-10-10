@@ -6,6 +6,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { socket, SOCKET_EVENTS } from '../services/socket';
 import notificationService from '../services/notificationService';
+import { getAuthToken } from '../services/api';
 
 export interface Notification {
   id: number;
@@ -13,6 +14,9 @@ export interface Notification {
   message: string;
   date: string;
   status: string;
+  targetTab?: string;
+  projectId?: number;
+  partnerId?: number;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -29,10 +33,18 @@ const NotificationContext = createContext<NotificationContextType | undefined>(u
 
 export const NotificationProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [notifications, setNotifications] = useState<Notification[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
 
   const refresh = async () => {
+    const token = getAuthToken();
+    if (!token) {
+      setNotifications([]);
+      setLoading(false);
+      return;
+    }
+
     try {
+      setLoading(true);
       const data = await notificationService.getMyNotifications();
       const items = Array.isArray((data as any)?.notifications)
         ? (data as any).notifications
@@ -59,12 +71,31 @@ export const NotificationProvider: React.FC<{ children: ReactNode }> = ({ childr
   };
 
   useEffect(() => {
-    refresh();
+    const token = getAuthToken();
+    if (token) {
+      refresh();
+    }
   }, []);
 
   useEffect(() => {
-    const handleNewNotification = (notification: Notification) => {
-      setNotifications((prev) => [notification, ...prev]);
+    const handleNewNotification = (notification: any) => {
+      if (!notification) return;
+      const formatted: Notification = {
+        id: notification.id || Date.now(),
+        userId: notification.userId || 0,
+        message: notification.message || 'New notification',
+        date: notification.createdAt || new Date().toISOString(),
+        status: 'unread',
+        targetTab: notification.targetTab,
+        projectId: notification.projectId,
+        partnerId: notification.partnerId,
+      };
+      setNotifications((prev) => {
+        if (prev.some((n) => n.id === formatted.id)) {
+          return prev;
+        }
+        return [formatted, ...prev];
+      });
     };
 
     socket.on(SOCKET_EVENTS.NOTIFICATION_NEW, handleNewNotification);

@@ -11,11 +11,22 @@ export const documentService = {
   },
 
   getProjectDocuments: async (
-    projectId: string | number
+    projectId: string | number,
+    targetRecipient?: string
   ): Promise<any> => {
     const response = await api.get('/documents', {
-      params: { projectId },
+      params: { projectId, targetRecipient },
     });
+    return response.data;
+  },
+
+  getMySentDocuments: async (): Promise<any> => {
+    const response = await api.get('/documents/my-sent');
+    return response.data;
+  },
+
+  getMyReceivedDocuments: async (): Promise<any> => {
+    const response = await api.get('/documents/my-received');
     return response.data;
   },
 

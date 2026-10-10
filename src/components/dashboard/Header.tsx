@@ -1,23 +1,18 @@
-/**
- * CamTrust Dashboard Top Header
- * Professional, clean navigation bar with global search, live notifications center,
- * and authenticated user profile menu with direct logout.
- */
-
 import React, { useState, useRef, useEffect } from 'react';
 import {
   Menu,
   Search,
   Bell,
   LogOut,
-  User
+  User,
+  Globe
 } from 'lucide-react';
 import useAuth from '../../hooks/useAuth';
-import { INITIAL_NOTIFICATIONS, NotificationItem } from '../../utils/dashboardData';
+import { useNotifications, Notification } from '../../context/NotificationContext';
 
 export interface HeaderProps {
   onOpenMobileSidebar: () => void;
-  onSelectTab: (tab: string) => void;
+  onSelectTab: (tab: string, projectId?: string | null) => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -25,7 +20,7 @@ export const Header: React.FC<HeaderProps> = ({
   onSelectTab,
 }) => {
   const { user, logout } = useAuth();
-  const [notifications, setNotifications] = useState<NotificationItem[]>(INITIAL_NOTIFICATIONS);
+  const { notifications, unreadCount, markRead } = useNotifications();
   const [notifOpen, setNotifOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
 
@@ -46,10 +41,37 @@ export const Header: React.FC<HeaderProps> = ({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const unreadCount = notifications.filter((n) => !n.read).length;
+  const handleNotificationClick = async (n: Notification) => {
+    if (n.status === 'unread') {
+      await markRead(n.id);
+    }
+    setNotifOpen(false);
 
-  const markAllRead = () => {
-    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+    // Determine target tab from metadata or message contents
+    const msg = (n.message || '').toLowerCase();
+    if (n.targetTab) {
+      onSelectTab(n.targetTab, n.projectId ? String(n.projectId) : undefined);
+    } else if (msg.includes('message')) {
+      onSelectTab('messages');
+    } else if (msg.includes('document')) {
+      onSelectTab('documents', n.projectId ? String(n.projectId) : undefined);
+    } else if (msg.includes('report')) {
+      onSelectTab('reports', n.projectId ? String(n.projectId) : undefined);
+    } else if (msg.includes('proposal') || msg.includes('engineer has been proposed')) {
+      onSelectTab('proposals');
+    } else if (msg.includes('verification') || msg.includes('kyc')) {
+      onSelectTab(user?.role === 'administrator' ? 'verification' : 'settings');
+    } else if (msg.includes('project')) {
+      onSelectTab(user?.role === 'administrator' ? 'projects-mgmt' : 'projects', n.projectId ? String(n.projectId) : undefined);
+    } else {
+      onSelectTab('notifications');
+    }
+  };
+
+  const markAllRead = async () => {
+    for (const n of notifications.filter(item => item.status === 'unread')) {
+      await markRead(n.id);
+    }
   };
 
   const handleLogout = () => {
@@ -135,31 +157,31 @@ export const Header: React.FC<HeaderProps> = ({
                 </div>
 
                 <div className="divide-y divide-gray-50 max-h-72 overflow-y-auto py-1">
-                  {notifications.map((n) => (
-                    <div
-                      key={n.id}
-                      onClick={() => {
-                        onSelectTab('notifications');
-                        setNotifOpen(false);
-                      }}
-                      className={`py-3 px-2 rounded-xl flex items-start gap-3 cursor-pointer transition ${
-                        !n.read ? 'bg-orange-50/50 hover:bg-orange-50' : 'hover:bg-gray-50'
-                      }`}
-                    >
-                      <div className="w-2 h-2 rounded-full bg-orange-500 mt-1.5 shrink-0" />
-                      <div className="min-w-0 flex-1">
-                        <div className="text-xs font-bold text-gray-900 truncate">
-                          {n.title}
-                        </div>
-                        <div className="text-[11px] text-gray-500 mt-0.5 line-clamp-2">
-                          {n.description}
-                        </div>
-                        <div className="text-[10px] text-gray-400 mt-1 font-medium">
-                          {n.date}
+                  {notifications.length === 0 ? (
+                    <div className="py-8 text-center text-xs text-gray-400">
+                      No notifications yet
+                    </div>
+                  ) : (
+                    notifications.map((n) => (
+                      <div
+                        key={n.id}
+                        onClick={() => handleNotificationClick(n)}
+                        className={`py-3 px-2 rounded-xl flex items-start gap-3 cursor-pointer transition ${
+                          n.status === 'unread' ? 'bg-orange-50/50 hover:bg-orange-50' : 'hover:bg-gray-50'
+                        }`}
+                      >
+                        <div className={`w-2 h-2 rounded-full mt-1.5 shrink-0 ${n.status === 'unread' ? 'bg-orange-500' : 'bg-gray-300'}`} />
+                        <div className="min-w-0 flex-1">
+                          <div className="text-xs font-bold text-gray-900 line-clamp-2">
+                            {n.message}
+                          </div>
+                          <div className="text-[10px] text-gray-400 mt-1 font-medium">
+                            {new Date(n.date).toLocaleString()}
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  ))}
+                    ))
+                  )}
                 </div>
 
                 <div className="pt-2 border-t border-gray-100 text-center">
@@ -211,6 +233,14 @@ export const Header: React.FC<HeaderProps> = ({
                 </div>
 
                 <div className="py-1">
+                  <a
+                    href="/"
+                    className="w-full flex items-center gap-2.5 px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 rounded-xl font-medium transition"
+                  >
+                    <Globe size={14} className="text-orange-500" />
+                    <span>View Landing Page</span>
+                  </a>
+
                   <button
                     onClick={() => {
                       onSelectTab('settings');

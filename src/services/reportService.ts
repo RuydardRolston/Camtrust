@@ -41,6 +41,11 @@ export const reportService = {
     const response = await api.get('/reports/all');
     return response.data;
   },
+
+  sendToOwner: async (reportId: string | number): Promise<any> => {
+    const response = await api.post(`/reports/${reportId}/send-to-owner`);
+    return response.data;
+  },
 };
 
 export default reportService;

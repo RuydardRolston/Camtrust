@@ -5,7 +5,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import useAuth from '../hooks/useAuth';
+import { useAuth } from '../hooks/useAuth';
 
 import Sidebar from '../components/dashboard/Sidebar';
 import Header from '../components/dashboard/Header';
@@ -18,6 +18,7 @@ import ProgressReportsView from './Dashboard/ProgressReportsView';
 import DocumentsView from './Dashboard/DocumentsView';
 import NotificationsView from './Dashboard/NotificationsView';
 import AIAssistantView from './Dashboard/AIAssistantView';
+import MessagesView from './Dashboard/MessagesView';
 import TeamView from './Dashboard/TeamView';
 import FinanceView from './Dashboard/FinanceView';
 import SettingsView from './Dashboard/SettingsView';
@@ -25,12 +26,12 @@ import ProjectProposalsView from './Dashboard/ProjectProposalsView';
 
 import EngineerDashboard from './Engineer/EngineerDashboard';
 import UpdateProgressView from './Engineer/UpdateProgressView';
+import EvidenceView from './Dashboard/EvidenceView';
 
 import AdminDashboard from './Admin/AdminDashboard';
 import UsersManagementView from './Admin/UsersManagementView';
 import ProfessionalsVerificationView from './Admin/ProfessionalsVerificationView';
 import ProjectsManagementView from './Admin/ProjectsManagementView';
-import EvidenceView from './Dashboard/EvidenceView';
 
 export const Workspace: React.FC = () => {
   const { user, isAuthenticated, loading } = useAuth();
@@ -55,13 +56,17 @@ export const Workspace: React.FC = () => {
     setSearchParams(params);
   };
 
-  const handleSelectTab = (tabId: string) => {
+  const handleSelectTab = (tabId: string, projectId?: string | null) => {
     setActiveTab(tabId);
     if (tabId === 'projects') {
       setSelectedProjectId(null);
       updateSearchParams(tabId, null);
     } else {
-      updateSearchParams(tabId, selectedProjectId);
+      const targetPid = projectId !== undefined ? projectId : selectedProjectId;
+      if (projectId !== undefined) {
+        setSelectedProjectId(targetPid);
+      }
+      updateSearchParams(tabId, targetPid);
     }
   };
 
@@ -84,8 +89,8 @@ export const Workspace: React.FC = () => {
 
   const role = user.role;
   const isOwner = role === 'property_owner';
-  const isEngineer = role === 'professional';
-  const isAdmin = role === 'administrator';
+  const isEngineer = role === 'professional' || role === 'engineer';
+  const isAdmin = role === 'administrator' || role === 'admin';
 
   if (!isOwner && !isEngineer && !isAdmin) {
     return (
@@ -138,35 +143,15 @@ export const Workspace: React.FC = () => {
                 />
               )}
 
-              {activeTab === 'milestones' && (
-                <MilestonesView />
-              )}
-
-              {activeTab === 'reports' && (
-                <ProgressReportsView />
-              )}
-
+              {activeTab === 'milestones' && <MilestonesView />}
+              {activeTab === 'evidence' && <EvidenceView />}
+              {activeTab === 'reports' && <ProgressReportsView />}
               {activeTab === 'documents' && <DocumentsView />}
-              {activeTab === 'notifications' && <NotificationsView />}
+              {activeTab === 'notifications' && <NotificationsView onNavigateTab={handleSelectTab} />}
               {activeTab === 'ai-assistant' && <AIAssistantView />}
               {activeTab === 'team' && <TeamView />}
               {activeTab === 'finance' && <FinanceView />}
-
-              {activeTab === 'messages' && (
-                <div className="bg-white p-8 rounded-2xl border border-gray-100 shadow-sm text-center space-y-3">
-                  <h2 className="text-xl font-bold text-gray-900">Project Messaging</h2>
-                  <p className="text-sm text-gray-500 max-w-md mx-auto">
-                    Direct communications with verified engineers and site supervisors are logged and verified.
-                  </p>
-                  <button
-                    onClick={() => handleSelectTab('team')}
-                    className="px-5 py-2.5 bg-orange-500 text-white font-bold text-sm rounded-xl shadow-md shadow-orange-500/20"
-                  >
-                    Open Team Contacts
-                  </button>
-                </div>
-              )}
-
+              {activeTab === 'messages' && <MessagesView />}
               {activeTab === 'settings' && <SettingsView />}
               {activeTab === 'proposals' && <ProjectProposalsView />}
             </>
@@ -196,16 +181,13 @@ export const Workspace: React.FC = () => {
                 />
               )}
 
-              {activeTab === 'update-progress' && (
-                <UpdateProgressView />
-              )}
-
-              {activeTab === 'reports' && (
-                <ProgressReportsView />
-              )}
-
+              {activeTab === 'update-progress' && <UpdateProgressView />}
+              {activeTab === 'milestones' && <MilestonesView />}
+              {activeTab === 'evidence' && <EvidenceView />}
+              {activeTab === 'reports' && <ProgressReportsView />}
               {activeTab === 'documents' && <DocumentsView />}
-              {activeTab === 'messages' && <TeamView />}
+              {activeTab === 'notifications' && <NotificationsView onNavigateTab={handleSelectTab} />}
+              {activeTab === 'messages' && <MessagesView />}
               {activeTab === 'settings' && <SettingsView />}
             </>
           )}
@@ -223,8 +205,10 @@ export const Workspace: React.FC = () => {
                   onSelectProject={handleSelectProject}
                 />
               )}
-              {activeTab === 'documents' && <DocumentsView />}
               {activeTab === 'evidence' && <EvidenceView />}
+              {activeTab === 'documents' && <DocumentsView />}
+              {activeTab === 'notifications' && <NotificationsView onNavigateTab={handleSelectTab} />}
+              {activeTab === 'messages' && <MessagesView />}
               {activeTab === 'settings' && <SettingsView />}
             </>
           )}

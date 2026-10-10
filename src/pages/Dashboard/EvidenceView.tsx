@@ -11,10 +11,16 @@ import {
   Search,
   Download,
   Eye,
+  FileDown,
+  Send,
+  CheckCircle2,
 } from 'lucide-react';
 import evidenceService from '../../services/evidenceService';
+import documentService from '../../services/documentService';
+import useAuth from '../../hooks/useAuth';
 import VerifiedBadge from '../../components/common/VerifiedBadge';
 import { useLocationName } from '../../hooks/useLocationName';
+import { downloadEvidencePhotoPdf, generateEvidencePhotoPdfBlob } from '../../utils/pdfReportGenerator';
 
 export interface Evidence {
   id: number;
@@ -51,10 +57,14 @@ export interface Evidence {
 }
 
 export const EvidenceView: React.FC = () => {
+  const { user } = useAuth();
   const [evidence, setEvidence] = useState<Evidence[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedPhoto, setSelectedPhoto] = useState<Evidence | null>(null);
+  const [downloadingId, setDownloadingId] = useState<number | null>(null);
+  const [sendingId, setSendingId] = useState<number | null>(null);
+  const [statusAlert, setStatusAlert] = useState<string | null>(null);
 
   useEffect(() => {
     loadEvidence();
@@ -69,6 +79,83 @@ export const EvidenceView: React.FC = () => {
       console.error('Failed to load evidence:', err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleDownloadPdf = async (item: Evidence) => {
+    try {
+      setDownloadingId(item.id);
+      const projectTitle = item.milestone?.project?.title || item.project?.title || 'Construction Site Evidence';
+      const projectLocation = item.milestone?.project?.location || item.project?.location || 'Site Location';
+      const milestoneLabel = item.milestone?.label || 'Milestone Evidence';
+
+      await downloadEvidencePhotoPdf({
+        projectTitle,
+        projectLocation,
+        milestoneLabel,
+        photoUrl: item.photoUrl,
+        description: item.description || 'Verified site progress evidence photo',
+        capturedAt: item.capturedAt,
+        gpsLatitude: item.gpsLatitude,
+        gpsLongitude: item.gpsLongitude,
+        gpsAvailable: item.gpsAvailable !== false,
+        engineerName: item.professional?.fullName || user?.fullName || 'Verified Civil Engineer',
+        engineerSpecialty: item.professional?.specialty || (user as any)?.specialty || 'Lead Construction Engineer',
+      });
+    } catch (err: any) {
+      console.error('Failed to download PDF:', err);
+      alert('Failed to generate PDF: ' + (err.message || 'Please try again'));
+    } finally {
+      setDownloadingId(null);
+    }
+  };
+
+  const handleSendPdfToOwner = async (item: Evidence) => {
+    const projectId = item.milestone?.projectId || item.project?.id;
+    if (!projectId) {
+      alert('Project ID not associated with this evidence item.');
+      return;
+    }
+
+    try {
+      setSendingId(item.id);
+      const projectTitle = item.milestone?.project?.title || item.project?.title || 'Construction Site Evidence';
+      const projectLocation = item.milestone?.project?.location || item.project?.location || 'Site Location';
+      const milestoneLabel = item.milestone?.label || 'Milestone Evidence';
+
+      const { blob, fileName } = await generateEvidencePhotoPdfBlob({
+        projectTitle,
+        projectLocation,
+        milestoneLabel,
+        photoUrl: item.photoUrl,
+        description: item.description || 'Verified site progress evidence photo',
+        capturedAt: item.capturedAt,
+        gpsLatitude: item.gpsLatitude,
+        gpsLongitude: item.gpsLongitude,
+        gpsAvailable: item.gpsAvailable !== false,
+        engineerName: item.professional?.fullName || user?.fullName || 'Verified Civil Engineer',
+        engineerSpecialty: item.professional?.specialty || (user as any)?.specialty || 'Lead Construction Engineer',
+      });
+
+      const pdfFile = new File([blob], fileName, { type: 'application/pdf' });
+      const formData = new FormData();
+      formData.append('document', pdfFile);
+      formData.append('projectId', String(projectId));
+      formData.append('category', 'Reports');
+      formData.append('targetRecipient', 'property_owner');
+      formData.append(
+        'notes',
+        `Official Accredited Site Evidence Certificate for milestone "${milestoneLabel}" verified with real GPS telemetry.`
+      );
+
+      await documentService.uploadDocument(formData);
+      setStatusAlert(`Certified Site Evidence Certificate successfully delivered to Project Owner!`);
+      setTimeout(() => setStatusAlert(null), 5000);
+    } catch (err: any) {
+      console.error('Failed to send PDF to owner:', err);
+      alert('Failed to send PDF: ' + (err.message || 'Please try again'));
+    } finally {
+      setSendingId(null);
     }
   };
 
@@ -112,6 +199,14 @@ export const EvidenceView: React.FC = () => {
           {evidence.length} Stamped Photos
         </span>
       </div>
+
+      {/* Success Alert */}
+      {statusAlert && (
+        <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-2xl text-emerald-800 text-xs sm:text-sm font-bold flex items-center gap-3 animate-fadeIn shadow-xs">
+          <CheckCircle2 size={20} className="text-emerald-600 shrink-0" />
+          <span>{statusAlert}</span>
+        </div>
+      )}
 
       <div className="relative max-w-sm">
         <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -190,16 +285,50 @@ export const EvidenceView: React.FC = () => {
                     )}
                   </div>
 
-                  <div className="flex items-center justify-between pt-1 border-t border-gray-100">
+                  <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-gray-100">
                     <VerifiedBadge size="sm" showText={false} subtext={item.professional?.fullName} />
-                    <a
-                      href={item.photoUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="text-xs font-black text-orange-600 hover:text-orange-700 flex items-center gap-1"
-                    >
-                      <Download size={13} /> Original
-                    </a>
+                    
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => handleSendPdfToOwner(item)}
+                        disabled={sendingId === item.id}
+                        className="px-2.5 py-1 rounded-lg bg-orange-50 hover:bg-orange-100 text-orange-700 text-[11px] font-black transition flex items-center gap-1 cursor-pointer border border-orange-200 disabled:opacity-50"
+                        title="Deliver certified PDF Certificate directly to Project Owner"
+                      >
+                        {sendingId === item.id ? (
+                          <Loader2 size={11} className="animate-spin" />
+                        ) : (
+                          <Send size={11} />
+                        )}
+                        <span>Send to Owner</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleDownloadPdf(item)}
+                        disabled={downloadingId === item.id}
+                        className="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 text-white text-[11px] font-bold transition flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                        title="Download accredited A4 PDF certificate"
+                      >
+                        {downloadingId === item.id ? (
+                          <Loader2 size={11} className="animate-spin" />
+                        ) : (
+                          <FileDown size={11} />
+                        )}
+                        <span>PDF</span>
+                      </button>
+
+                      <a
+                        href={item.photoUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="p-1 text-slate-400 hover:text-slate-600 rounded-md transition"
+                        title="Download original photo file"
+                      >
+                        <Download size={13} />
+                      </a>
+                    </div>
                   </div>
                 </div>
               </div>

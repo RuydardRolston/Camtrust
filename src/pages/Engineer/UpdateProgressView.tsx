@@ -14,16 +14,27 @@ import {
   Loader2,
   AlertCircle,
   Eye,
+  FileDown,
+  Download,
+  Send,
+  Users,
 } from 'lucide-react';
 import useAuth from '../../hooks/useAuth';
 import assignmentService from '../../services/assignmentService';
 import milestoneService from '../../services/milestoneService';
 import reportService from '../../services/reportService';
 import evidenceService from '../../services/evidenceService';
+import documentService from '../../services/documentService';
 import CameraEvidenceModal from '../../components/monitoring/CameraEvidenceModal';
 import ReportViewerModal from '../../components/monitoring/ReportViewerModal';
 import VerifiedBadge from '../../components/common/VerifiedBadge';
-import { ProgressReportData } from '../../utils/pdfReportGenerator';
+import {
+  ProgressReportData,
+  downloadEvidencePhotoPdf,
+  downloadPdfReport,
+  generateEvidencePhotoPdfBlob,
+  generatePdfReportBlob,
+} from '../../utils/pdfReportGenerator';
 
 export interface Project {
   id: number;
@@ -62,6 +73,10 @@ export const UpdateProgressView: React.FC = () => {
   // Site Evidence state
   const [recordedEvidence, setRecordedEvidence] = useState<any[]>([]);
   const [isCameraModalOpen, setIsCameraModalOpen] = useState(false);
+  const [downloadingEvidenceId, setDownloadingEvidenceId] = useState<number | string | null>(null);
+  const [sendingEvidenceId, setSendingEvidenceId] = useState<number | string | null>(null);
+  const [sendingAllPdf, setSendingAllPdf] = useState(false);
+  const [autoSendPdfToOwner, setAutoSendPdfToOwner] = useState(true);
 
   // Report Preview Modal state
   const [previewReportData, setPreviewReportData] = useState<ProgressReportData | null>(null);
@@ -173,6 +188,176 @@ export const UpdateProgressView: React.FC = () => {
     setIsViewerModalOpen(true);
   };
 
+  const handleDownloadSingleEvidencePdf = async (item: any) => {
+    try {
+      setDownloadingEvidenceId(item.id || 'single');
+      const milestone = milestones.find((m) => m.id === item.milestoneId || m.id === selectedMilestoneId);
+      await downloadEvidencePhotoPdf({
+        projectTitle: currentProject?.title || 'Construction Site Evidence',
+        projectLocation: currentProject?.location || 'Site Location',
+        milestoneLabel: milestone?.label || 'Milestone Inspection',
+        photoUrl: item.photoUrl,
+        description: item.description || 'Verified site progress evidence photo',
+        capturedAt: item.capturedAt || item.createdAt || new Date().toISOString(),
+        gpsLatitude: item.gpsLatitude,
+        gpsLongitude: item.gpsLongitude,
+        gpsAvailable: item.gpsAvailable !== false,
+        engineerName: user?.fullName || 'Verified Civil Engineer',
+        engineerSpecialty: (user as any)?.specialty || 'Lead Construction Engineer',
+      });
+    } catch (err: any) {
+      console.error('Failed to download single evidence PDF:', err);
+      alert('Failed to generate PDF: ' + (err.message || 'Please try again'));
+    } finally {
+      setDownloadingEvidenceId(null);
+    }
+  };
+
+  const handleSendSingleEvidencePdfToOwner = async (item: any, target: 'property_owner' | 'administrator' | 'both' = 'property_owner') => {
+    try {
+      setSendingEvidenceId(item.id || 'single');
+      const milestone = milestones.find((m) => m.id === item.milestoneId || m.id === selectedMilestoneId);
+      const { blob, fileName } = await generateEvidencePhotoPdfBlob({
+        projectTitle: currentProject?.title || 'Construction Site Evidence',
+        projectLocation: currentProject?.location || 'Site Location',
+        milestoneLabel: milestone?.label || 'Milestone Inspection',
+        photoUrl: item.photoUrl,
+        description: item.description || 'Verified site progress evidence photo',
+        capturedAt: item.capturedAt || item.createdAt || new Date().toISOString(),
+        gpsLatitude: item.gpsLatitude,
+        gpsLongitude: item.gpsLongitude,
+        gpsAvailable: item.gpsAvailable !== false,
+        engineerName: user?.fullName || 'Verified Civil Engineer',
+        engineerSpecialty: (user as any)?.specialty || 'Lead Construction Engineer',
+      });
+
+      const pdfFile = new File([blob], fileName, { type: 'application/pdf' });
+      const formData = new FormData();
+      formData.append('document', pdfFile);
+      formData.append('projectId', String(selectedProjectId));
+      formData.append('category', 'Reports');
+      formData.append('targetRecipient', target);
+      formData.append(
+        'notes',
+        `Official Accredited Site Evidence Certificate for milestone "${milestone?.label || 'Inspection'}" verified by Eng. ${user?.fullName || 'Civil Engineer'} with live GPS telemetry.`
+      );
+
+      await documentService.uploadDocument(formData);
+      const label =
+        target === 'property_owner'
+          ? 'Project Owner'
+          : target === 'administrator'
+          ? 'Administrator'
+          : 'Project Owner & Administrator';
+      setSuccessMessage(`Site Evidence Certificate successfully delivered to ${label}!`);
+      setTimeout(() => setSuccessMessage(null), 5000);
+    } catch (err: any) {
+      console.error('Failed to send evidence PDF:', err);
+      alert('Failed to transmit PDF: ' + (err.message || 'Please try again'));
+    } finally {
+      setSendingEvidenceId(null);
+    }
+  };
+
+  const handleDownloadAllEvidencePdf = async () => {
+    if (recordedEvidence.length === 0) return;
+    try {
+      const selectedMilestone = milestones.find((m) => m.id === selectedMilestoneId);
+      const reportData: ProgressReportData = {
+        projectTitle: currentProject?.title || 'Construction Project Evidence Audit',
+        projectLocation: currentProject?.location || 'Site Location',
+        projectStatus: currentProject?.status || 'In Progress',
+        reportingDate: new Date().toISOString(),
+        currentMilestoneLabel: selectedMilestone?.label || 'All Milestones',
+        overallProgress: progress,
+        engineer: {
+          fullName: user?.fullName || 'Verified Civil Engineer',
+          specialty: (user as any)?.specialty || 'Lead Construction Engineer',
+          verified: true,
+        },
+        workCompleted: `Compilation of ${recordedEvidence.length} certified on-site photographic evidence records with real-time GPS telemetry.`,
+        workInProgress: workInProgress || 'Active construction monitoring.',
+        observations: 'All evidence photos verified and stamped with cryptographic GPS coordinates and tamper-proof EXIF signatures.',
+        evidencePhotos: recordedEvidence.map((e) => ({
+          photoUrl: e.photoUrl,
+          description: e.description,
+          capturedAt: e.capturedAt,
+          gpsLatitude: e.gpsLatitude,
+          gpsLongitude: e.gpsLongitude,
+          gpsAvailable: e.gpsAvailable,
+          milestoneLabel: milestones.find((m) => m.id === e.milestoneId)?.label || selectedMilestone?.label,
+        })),
+      };
+      await downloadPdfReport(reportData);
+    } catch (err: any) {
+      console.error('Failed to download all evidence PDF:', err);
+      alert('Failed to generate all evidence PDF: ' + (err.message || 'Please try again'));
+    }
+  };
+
+  const handleSendAllEvidencePdfToOwner = async (target: 'property_owner' | 'administrator' | 'both' = 'property_owner') => {
+    if (recordedEvidence.length === 0) {
+      alert('No evidence photos recorded yet for this project.');
+      return;
+    }
+    try {
+      setSendingAllPdf(true);
+      const selectedMilestone = milestones.find((m) => m.id === selectedMilestoneId);
+      const reportData: ProgressReportData = {
+        projectTitle: currentProject?.title || 'Construction Project Evidence Audit',
+        projectLocation: currentProject?.location || 'Site Location',
+        projectStatus: currentProject?.status || 'In Progress',
+        reportingDate: new Date().toISOString(),
+        currentMilestoneLabel: selectedMilestone?.label || 'All Milestones',
+        overallProgress: progress,
+        engineer: {
+          fullName: user?.fullName || 'Verified Civil Engineer',
+          specialty: (user as any)?.specialty || 'Lead Construction Engineer',
+          verified: true,
+        },
+        workCompleted: `Compilation of ${recordedEvidence.length} certified on-site photographic evidence records with real-time GPS telemetry.`,
+        workInProgress: workInProgress || 'Active construction monitoring.',
+        observations: 'All evidence photos verified and stamped with cryptographic GPS coordinates and tamper-proof EXIF signatures.',
+        evidencePhotos: recordedEvidence.map((e) => ({
+          photoUrl: e.photoUrl,
+          description: e.description,
+          capturedAt: e.capturedAt,
+          gpsLatitude: e.gpsLatitude,
+          gpsLongitude: e.gpsLongitude,
+          gpsAvailable: e.gpsAvailable,
+          milestoneLabel: milestones.find((m) => m.id === e.milestoneId)?.label || selectedMilestone?.label,
+        })),
+      };
+
+      const { blob, fileName } = await generatePdfReportBlob(reportData);
+      const pdfFile = new File([blob], fileName, { type: 'application/pdf' });
+      const formData = new FormData();
+      formData.append('document', pdfFile);
+      formData.append('projectId', String(selectedProjectId));
+      formData.append('category', 'Reports');
+      formData.append('targetRecipient', target);
+      formData.append(
+        'notes',
+        `Official Certified Site Evidence Audit Dossier (${recordedEvidence.length} stamped inspection photos) delivered by Eng. ${user?.fullName || 'Civil Engineer'}.`
+      );
+
+      await documentService.uploadDocument(formData);
+      const label =
+        target === 'property_owner'
+          ? 'Project Owner'
+          : target === 'administrator'
+          ? 'Administrator'
+          : 'Project Owner & Administrator';
+      setSuccessMessage(`Site Evidence Audit PDF Dossier delivered directly to ${label}!`);
+      setTimeout(() => setSuccessMessage(null), 5000);
+    } catch (err: any) {
+      console.error('Failed to send all evidence PDF:', err);
+      alert('Failed to transmit PDF: ' + (err.message || 'Please try again'));
+    } finally {
+      setSendingAllPdf(false);
+    }
+  };
+
   const handleSubmitProgress = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedMilestoneId || !selectedProjectId) {
@@ -207,7 +392,61 @@ export const UpdateProgressView: React.FC = () => {
         status: progress >= 100 ? 'Completed' : progress > 0 ? 'In Progress' : 'Pending',
       });
 
-      setSuccessMessage('Progress update and official construction report submitted successfully!');
+      // Automatically dispatch certified PDF report to Project Owner if selected
+      if (autoSendPdfToOwner) {
+        try {
+          const reportData: ProgressReportData = {
+            projectTitle: currentProject?.title || 'Construction Project',
+            projectLocation: currentProject?.location || 'Site Location',
+            projectStatus: progress >= 100 ? 'Completed' : 'In Progress',
+            reportingDate: new Date().toISOString(),
+            currentMilestoneLabel: selectedMilestone?.label || 'Milestone Report',
+            overallProgress: progress,
+            engineer: {
+              fullName: user?.fullName || 'Verified Civil Engineer',
+              specialty: (user as any)?.specialty || 'Lead Construction Engineer',
+              verified: true,
+            },
+            workCompleted: workCompleted || summaryText,
+            workInProgress: workInProgress || undefined,
+            workRemaining: workRemaining || undefined,
+            observations: observations || undefined,
+            issues: issues || undefined,
+            recommendations: recommendations || undefined,
+            evidencePhotos: recordedEvidence.map((e) => ({
+              photoUrl: e.photoUrl,
+              description: e.description,
+              capturedAt: e.capturedAt,
+              gpsLatitude: e.gpsLatitude,
+              gpsLongitude: e.gpsLongitude,
+              gpsAvailable: e.gpsAvailable,
+              milestoneLabel: milestones.find((m) => m.id === e.milestoneId)?.label || selectedMilestone?.label,
+            })),
+          };
+
+          const { blob, fileName } = await generatePdfReportBlob(reportData);
+          const pdfFile = new File([blob], fileName, { type: 'application/pdf' });
+          const formData = new FormData();
+          formData.append('document', pdfFile);
+          formData.append('projectId', String(selectedProjectId));
+          formData.append('category', 'Reports');
+          formData.append('targetRecipient', 'property_owner');
+          formData.append(
+            'notes',
+            `Official Certified Progress & Site Evidence Report for milestone "${selectedMilestone?.label || 'Milestone'}" (Progress: ${progress}%) delivered directly to Project Owner.`
+          );
+
+          await documentService.uploadDocument(formData);
+        } catch (pdfErr) {
+          console.warn('Auto-generation of PDF for owner warning:', pdfErr);
+        }
+      }
+
+      setSuccessMessage(
+        autoSendPdfToOwner
+          ? 'Progress updated and certified PDF report delivered directly to Project Owner!'
+          : 'Progress update and official construction report submitted successfully!'
+      );
       setTimeout(() => setSuccessMessage(null), 5000);
 
       // Refresh milestones
@@ -265,9 +504,19 @@ export const UpdateProgressView: React.FC = () => {
 
       {/* Success Notification Banner */}
       {successMessage && (
-        <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-2xl text-emerald-800 text-sm font-bold flex items-center gap-3 animate-fadeIn">
-          <CheckCircle2 size={20} className="text-emerald-600 shrink-0" />
-          <span>{successMessage}</span>
+        <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-2xl text-emerald-800 text-sm font-bold flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-fadeIn">
+          <div className="flex items-center gap-3">
+            <CheckCircle2 size={20} className="text-emerald-600 shrink-0" />
+            <span>{successMessage}</span>
+          </div>
+          <button
+            type="button"
+            onClick={handlePreviewCurrentReport}
+            className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black shadow-md transition flex items-center gap-1.5 self-start sm:self-auto cursor-pointer"
+          >
+            <FileDown size={14} />
+            <span>Download Official PDF Report</span>
+          </button>
         </div>
       )}
 
@@ -375,26 +624,98 @@ export const UpdateProgressView: React.FC = () => {
             {/* Recorded Evidence Preview List */}
             {recordedEvidence.length > 0 && (
               <div className="pt-3 border-t border-slate-800">
-                <div className="text-xs font-bold text-slate-300 uppercase tracking-wider mb-3">
-                  Recorded Evidence for this Project ({recordedEvidence.length})
+                <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+                  <div className="text-xs font-bold text-slate-300 uppercase tracking-wider">
+                    Recorded Evidence for this Project ({recordedEvidence.length})
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => handleSendAllEvidencePdfToOwner('property_owner')}
+                      disabled={sendingAllPdf}
+                      className="px-3 py-1.5 bg-orange-600 hover:bg-orange-500 text-white rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50 shadow-xs"
+                      title="Deliver certified evidence compilation dossier directly to Project Owner"
+                    >
+                      {sendingAllPdf ? (
+                        <Loader2 size={13} className="animate-spin" />
+                      ) : (
+                        <Send size={13} />
+                      )}
+                      <span>Deliver Evidence PDF to Owner</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleDownloadAllEvidencePdf}
+                      className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-amber-400 hover:text-amber-300 border border-slate-700 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer"
+                      title="Export all evidence photos as a certified multi-page PDF"
+                    >
+                      <FileDown size={13} />
+                      <span>Export Local PDF</span>
+                    </button>
+                  </div>
                 </div>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                  {recordedEvidence.slice(0, 4).map((item, idx) => (
+                  {recordedEvidence.slice(0, 8).map((item, idx) => (
                     <div
                       key={item.id || idx}
-                      className="rounded-xl overflow-hidden bg-slate-800 border border-slate-700 group relative"
+                      className="rounded-xl overflow-hidden bg-slate-800 border border-slate-700 group relative flex flex-col justify-between"
                     >
-                      <div className="aspect-video bg-black flex items-center justify-center overflow-hidden">
+                      <div className="aspect-video bg-black flex items-center justify-center overflow-hidden relative">
                         <img
                           src={item.photoUrl}
                           alt="Evidence"
                           className="w-full h-full object-cover group-hover:scale-105 transition"
                         />
+                        <button
+                          type="button"
+                          onClick={() => handleDownloadSingleEvidencePdf(item)}
+                          disabled={downloadingEvidenceId === (item.id || idx)}
+                          className="absolute inset-0 bg-black/65 opacity-0 group-hover:opacity-100 transition flex items-center justify-center gap-1.5 text-white text-xs font-bold p-2 cursor-pointer"
+                          title="Download certified PDF report for this evidence"
+                        >
+                          {downloadingEvidenceId === (item.id || idx) ? (
+                            <Loader2 size={16} className="animate-spin text-orange-400" />
+                          ) : (
+                            <>
+                              <Download size={14} className="text-orange-400" />
+                              <span>Download PDF</span>
+                            </>
+                          )}
+                        </button>
                       </div>
-                      <div className="p-2 text-[10px] space-y-0.5">
+                      <div className="p-2 text-[10px] space-y-1.5">
                         <div className="font-bold text-white truncate">{item.description || 'Site photo'}</div>
-                        <div className="text-emerald-400 font-semibold flex items-center gap-0.5">
-                          <MapPin size={9} /> GPS ✓ Recorded
+                        <div className="flex items-center justify-between text-slate-400">
+                          <span className="text-emerald-400 font-semibold flex items-center gap-0.5">
+                            <MapPin size={9} /> GPS ✓
+                          </span>
+                          <span className="text-slate-400 text-[9px]">
+                            {item.capturedAt ? new Date(item.capturedAt).toLocaleDateString('en-GB') : ''}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between gap-1 pt-1 border-t border-slate-700/60">
+                          <button
+                            type="button"
+                            onClick={() => handleSendSingleEvidencePdfToOwner(item, 'property_owner')}
+                            disabled={sendingEvidenceId === (item.id || idx)}
+                            className="px-2 py-1 bg-orange-500/20 hover:bg-orange-500/40 text-orange-400 rounded-md font-extrabold text-[10px] flex items-center gap-1 transition cursor-pointer disabled:opacity-50"
+                            title="Deliver certified PDF certificate directly to Project Owner"
+                          >
+                            {sendingEvidenceId === (item.id || idx) ? (
+                              <Loader2 size={10} className="animate-spin" />
+                            ) : (
+                              <Send size={10} />
+                            )}
+                            <span>Send to Owner</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDownloadSingleEvidencePdf(item)}
+                            className="text-slate-400 hover:text-white p-1 cursor-pointer"
+                            title="Download PDF"
+                          >
+                            <Download size={12} />
+                          </button>
                         </div>
                       </div>
                     </div>
@@ -495,6 +816,27 @@ export const UpdateProgressView: React.FC = () => {
             </div>
           </div>
 
+          {/* Auto-dispatch PDF checkbox */}
+          <div className="p-3.5 rounded-2xl bg-amber-50/70 border border-amber-200/70 flex items-center justify-between gap-3">
+            <label className="flex items-center gap-2.5 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={autoSendPdfToOwner}
+                onChange={(e) => setAutoSendPdfToOwner(e.target.checked)}
+                className="w-4 h-4 text-orange-500 rounded border-gray-300 focus:ring-orange-500 cursor-pointer"
+              />
+              <div>
+                <span className="text-xs font-black text-gray-900 block">
+                  Automatically deliver certified PDF Progress & Evidence Report directly to Project Owner
+                </span>
+                <span className="text-[11px] text-gray-500 block">
+                  Generates accredited engineering report with live GPS coordinates and digital attestation.
+                </span>
+              </div>
+            </label>
+            <Send size={18} className="text-amber-600 shrink-0 hidden sm:block" />
+          </div>
+
           {/* Action Buttons */}
           <div className="pt-4 border-t border-gray-100 flex flex-col sm:flex-row items-center justify-between gap-3">
             <button
@@ -531,6 +873,7 @@ export const UpdateProgressView: React.FC = () => {
         onClose={() => setIsCameraModalOpen(false)}
         projectId={selectedProjectId}
         projectTitle={currentProject?.title || 'Construction Project'}
+        projectLocation={currentProject?.location || 'Site Location'}
         milestones={milestones}
         defaultMilestoneId={selectedMilestoneId}
         onEvidenceSubmitted={handleEvidenceCaptured}

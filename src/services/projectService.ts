@@ -7,10 +7,11 @@ export interface ProjectPayload {
   budget: string;
   startDate: string;
   estimatedDuration?: string;
+  feasibilityDocs?: File[];
 }
 
 export interface ProjectUpdatePayload
-  extends Partial<Omit<ProjectPayload, 'budget'>> {}
+  extends Partial<Omit<ProjectPayload, 'budget' | 'feasibilityDocs'>> {}
 
 export interface ProjectStatusPayload {
   status: string;
@@ -19,7 +20,24 @@ export interface ProjectStatusPayload {
 
 export const projectService = {
   createProject: async (data: ProjectPayload): Promise<any> => {
-    const response = await api.post('/projects/create', data);
+    const formData = new FormData();
+    formData.append('title', data.title);
+    formData.append('location', data.location);
+    if (data.description) formData.append('description', data.description);
+    if (data.budget) formData.append('budget', data.budget);
+    if (data.startDate) formData.append('startDate', data.startDate);
+    if (data.estimatedDuration) formData.append('estimatedDuration', data.estimatedDuration);
+
+    // Append feasibility documents as files
+    if (data.feasibilityDocs && data.feasibilityDocs.length > 0) {
+      data.feasibilityDocs.forEach((file) => {
+        formData.append('feasibilityDocs', file);
+      });
+    }
+
+    const response = await api.post('/projects/create', formData, {
+      headers: { 'Content-Type': undefined }, // Let browser set multipart boundary
+    });
     return response.data;
   },
 

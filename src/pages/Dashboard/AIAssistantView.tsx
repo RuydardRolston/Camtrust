@@ -1,9 +1,3 @@
-/**
- * CamTrust - Gemini AI Construction Assistant View
- * Dedicated AI Chatbot powered by Google Gemini via the Express backend.
- * Provides instant assistance on (A) Construction Terminology and (B) How to Use Camtrust.
- */
-
 import React, { useState, useEffect, useRef } from 'react';
 import {
   Sparkles,
@@ -95,10 +89,11 @@ export const AIAssistantView: React.FC = () => {
       };
       setMessages((prev) => [...prev, assistantMessage]);
     } catch (err: any) {
+      const errorText = err?.response?.data?.message || err.message || 'AI service temporarily unavailable. Please try again.';
       const errorMessage: Message = {
         id: Date.now() + 1,
         role: 'assistant',
-        content: `Error: ${err.message || 'AI service temporarily unavailable. Please try again.'}`,
+        content: `Notice: ${errorText}`,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       };
       setMessages((prev) => [...prev, errorMessage]);
@@ -121,7 +116,7 @@ export const AIAssistantView: React.FC = () => {
                 Camtrust Gemini AI Assistant
               </h1>
               <span className="px-2.5 py-0.5 bg-orange-500/20 text-orange-400 text-[10px] font-black rounded-full border border-orange-500/30">
-                Google Gemini API
+                Gemini 3.5 Active
               </span>
             </div>
             <p className="text-xs sm:text-sm text-slate-400 mt-1">
@@ -144,7 +139,7 @@ export const AIAssistantView: React.FC = () => {
                 key={idx}
                 type="button"
                 onClick={() => handleSendQuery(item)}
-                className="px-3 py-1.5 bg-slate-50 hover:bg-orange-50 hover:text-orange-700 hover:border-orange-200 text-slate-700 text-xs font-semibold rounded-xl border border-slate-200 transition text-left"
+                className="px-3 py-1.5 bg-slate-50 hover:bg-orange-50 hover:text-orange-700 hover:border-orange-200 text-slate-700 text-xs font-semibold rounded-xl border border-slate-200 transition text-left cursor-pointer"
               >
                 {item}
               </button>
@@ -163,7 +158,7 @@ export const AIAssistantView: React.FC = () => {
                 key={idx}
                 type="button"
                 onClick={() => handleSendQuery(item)}
-                className="px-3 py-1.5 bg-slate-50 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-200 text-slate-700 text-xs font-semibold rounded-xl border border-slate-200 transition text-left"
+                className="px-3 py-1.5 bg-slate-50 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-200 text-slate-700 text-xs font-semibold rounded-xl border border-slate-200 transition text-left cursor-pointer"
               >
                 {item}
               </button>
@@ -223,7 +218,7 @@ export const AIAssistantView: React.FC = () => {
               </div>
               <div className="bg-white border border-slate-200 p-3.5 rounded-2xl rounded-tl-xs shadow-xs flex items-center gap-2 text-xs text-slate-500 font-semibold">
                 <Loader2 size={14} className="animate-spin text-orange-500" />
-                <span>Consulting Gemini AI Construction Model...</span>
+                <span>Consulting Gemini 1.5 AI Construction Model...</span>
               </div>
             </div>
           )}

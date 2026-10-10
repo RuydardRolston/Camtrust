@@ -13,9 +13,14 @@ import {
   Loader2,
   UserPlus,
   ShieldCheck,
+  Paperclip,
+  FileText,
+  X,
+  ExternalLink,
 } from 'lucide-react';
 import projectService from '../../services/projectService';
 import assignmentService from '../../services/assignmentService';
+import documentService from '../../services/documentService';
 import VerifiedBadge from '../../components/common/VerifiedBadge';
 
 export interface Project {
@@ -63,6 +68,10 @@ export const ProjectsManagementView: React.FC<ProjectsManagementViewProps> = ({
   const [assigningProjectId, setAssigningProjectId] = useState<number | null>(null);
   const [selectedProfessionalId, setSelectedProfessionalId] = useState<number>(0);
   const [processing, setProcessing] = useState(false);
+  const [docsProjectId, setDocsProjectId] = useState<number | null>(null);
+  const [docsProjectTitle, setDocsProjectTitle] = useState<string>('');
+  const [projectDocs, setProjectDocs] = useState<any[]>([]);
+  const [loadingDocs, setLoadingDocs] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -129,6 +138,22 @@ export const ProjectsManagementView: React.FC<ProjectsManagementViewProps> = ({
       alert(err.message || 'Failed to assign engineer');
     } finally {
       setProcessing(false);
+    }
+  };
+
+  const handleViewDocs = async (project: Project) => {
+    setDocsProjectId(project.id);
+    setDocsProjectTitle(project.title);
+    setProjectDocs([]);
+    setLoadingDocs(true);
+    try {
+      const data = await documentService.getProjectDocuments(project.id);
+      const docs = Array.isArray(data) ? data : (data?.documents || []);
+      setProjectDocs(docs);
+    } catch {
+      setProjectDocs([]);
+    } finally {
+      setLoadingDocs(false);
     }
   };
 
@@ -257,6 +282,14 @@ export const ProjectsManagementView: React.FC<ProjectsManagementViewProps> = ({
                       )}
 
                       <button
+                        onClick={() => handleViewDocs(p)}
+                        className="p-1.5 rounded-lg text-orange-500 hover:bg-orange-50 transition"
+                        title="View Feasibility Documents"
+                      >
+                        <Paperclip size={17} />
+                      </button>
+
+                      <button
                         onClick={() => onSelectProject(String(p.id))}
                         className="p-1.5 rounded-lg text-gray-400 hover:text-orange-600 hover:bg-orange-50 transition"
                         title="View Details & Timeline"
@@ -302,62 +335,75 @@ export const ProjectsManagementView: React.FC<ProjectsManagementViewProps> = ({
         </div>
       )}
 
-      {/* Assign Verified Engineer Modal */}
-      {assigningProjectId && (
-        <div className="fixed inset-0 bg-black/75 backdrop-blur-xs z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-md w-full p-6 sm:p-8 shadow-2xl space-y-5">
-            <div>
-              <h3 className="text-lg font-black text-gray-900 flex items-center gap-2">
-                <UserPlus size={20} className="text-emerald-600" />
-                <span>Assign Verified Civil Engineer</span>
-              </h3>
-              <p className="text-xs text-gray-500 mt-1">
-                Select a verified construction professional to supervise this project site.
-              </p>
+      {/* Feasibility Documents Modal */}
+      {docsProjectId && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-lg w-full p-6 sm:p-8 shadow-2xl border border-gray-100 animate-fadeIn relative">
+            <button
+              onClick={() => setDocsProjectId(null)}
+              className="absolute top-5 right-5 p-2 rounded-xl text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition"
+            >
+              <X size={20} />
+            </button>
+
+            <div className="flex items-center gap-3 mb-5">
+              <div className="w-10 h-10 rounded-2xl bg-orange-100 text-orange-600 flex items-center justify-center">
+                <Paperclip size={20} />
+              </div>
+              <div>
+                <h3 className="text-lg font-black text-gray-900">Feasibility Documents</h3>
+                <p className="text-xs text-gray-500">{docsProjectTitle}</p>
+              </div>
             </div>
 
-            <div className="space-y-2 max-h-64 overflow-y-auto">
-              {professionals.length === 0 ? (
-                <div className="p-6 bg-gray-50 rounded-2xl border border-dashed border-gray-200 text-center text-xs text-gray-500">
-                  No verified engineers available. Approve engineer KYC requests first.
-                </div>
-              ) : (
-                professionals.map((prof) => (
-                  <div
-                    key={prof.id}
-                    onClick={() => setSelectedProfessionalId(prof.id)}
-                    className={`p-3.5 rounded-2xl border cursor-pointer transition flex items-center justify-between ${
-                      selectedProfessionalId === prof.id
-                        ? 'border-emerald-500 bg-emerald-50/50'
-                        : 'border-gray-200 hover:bg-gray-50'
-                    }`}
-                  >
-                    <div>
-                      <div className="text-sm font-extrabold text-gray-900">{prof.fullName}</div>
-                      <div className="text-xs text-gray-500">{prof.email}</div>
-                      <div className="text-[10px] text-gray-400">{prof.specialty || 'Civil & Structural Engineer'}</div>
+            {loadingDocs ? (
+              <div className="flex items-center justify-center py-10">
+                <Loader2 className="w-6 h-6 animate-spin text-orange-500" />
+              </div>
+            ) : projectDocs.length === 0 ? (
+              <div className="py-10 text-center bg-gray-50 rounded-2xl border border-dashed border-gray-200">
+                <FileText className="w-10 h-10 text-gray-300 mx-auto mb-2" />
+                <p className="text-sm text-gray-500 font-medium">No documents attached</p>
+                <p className="text-xs text-gray-400 mt-1">The project owner has not uploaded any feasibility documents yet.</p>
+              </div>
+            ) : (
+              <div className="space-y-2 max-h-80 overflow-y-auto">
+                {projectDocs.map((doc: any) => (
+                  <div key={doc.id} className="flex items-center justify-between p-3.5 rounded-2xl border border-gray-200 bg-gray-50 hover:bg-orange-50/40 transition">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-9 h-9 rounded-xl bg-orange-100 text-orange-600 flex items-center justify-center shrink-0">
+                        <FileText size={17} />
+                      </div>
+                      <div className="min-w-0">
+                        <div className="text-xs font-extrabold text-gray-900 truncate">{doc.fileName}</div>
+                        <div className="text-[11px] text-gray-500">
+                          {doc.category} · {doc.uploadedBy?.fullName || 'Project Owner'}
+                        </div>
+                        <div className="text-[10px] text-gray-400">
+                          {new Date(doc.uploadedAt).toLocaleDateString('en-GB')}
+                        </div>
+                      </div>
                     </div>
-
-                    <VerifiedBadge size="sm" showText={false} />
+                    <a
+                      href={`http://localhost:4000${doc.fileUrl}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="ml-2 p-2 rounded-xl bg-orange-500 hover:bg-orange-600 text-white transition shrink-0"
+                      title="Open Document"
+                    >
+                      <ExternalLink size={14} />
+                    </a>
                   </div>
-                ))
-              )}
-            </div>
+                ))}
+              </div>
+            )}
 
-            <div className="flex items-center justify-end gap-2 pt-2 border-t border-gray-100">
+            <div className="mt-5 flex justify-end">
               <button
-                onClick={() => { setAssigningProjectId(null); setSelectedProfessionalId(0); }}
-                className="px-4 py-2 rounded-xl border border-gray-200 text-xs font-bold text-gray-600"
+                onClick={() => setDocsProjectId(null)}
+                className="px-5 py-2.5 rounded-xl bg-gray-900 hover:bg-gray-800 text-white text-xs font-bold transition cursor-pointer"
               >
-                Cancel
-              </button>
-              <button
-                onClick={() => handleAssignEngineer(assigningProjectId)}
-                disabled={!selectedProfessionalId || processing}
-                className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black shadow-md transition disabled:opacity-50 flex items-center gap-1.5"
-              >
-                {processing ? <Loader2 size={14} className="animate-spin" /> : <ShieldCheck size={14} />}
-                <span>Assign Engineer</span>
+                Close
               </button>
             </div>
           </div>

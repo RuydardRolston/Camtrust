@@ -10,7 +10,9 @@ export interface User {
   email: string;
   role: UserRole | string;
   verified?: boolean;
+  status?: string;
   phone?: string;
+  specialty?: string;
   avatar?: string;
 }
 

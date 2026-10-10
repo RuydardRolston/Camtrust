@@ -213,7 +213,7 @@ export const Register: React.FC = () => {
           {/* I am a Role Dropdown */}
           <div>
             <label htmlFor="register-role" className="block text-xs font-semibold text-gray-800 mb-1.5">
-              Role
+              I am a
             </label>
             <div className="relative">
               <select

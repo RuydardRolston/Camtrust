@@ -17,6 +17,12 @@ import {
   Eye,
   CheckCircle2,
   Loader2,
+  FileDown,
+  Send,
+  MessageSquare,
+  UserCheck,
+  ShieldCheck,
+  Users,
 } from 'lucide-react';
 import useAuth from '../../hooks/useAuth';
 import projectService from '../../services/projectService';
@@ -28,7 +34,7 @@ import { joinProjectRoom, leaveProjectRoom } from '../../services/socket';
 import { useCurrency } from '../../context/CurrencyContext';
 import VerifiedBadge from '../../components/common/VerifiedBadge';
 import ReportViewerModal from '../../components/monitoring/ReportViewerModal';
-import { ProgressReportData, downloadPdfReport } from '../../utils/pdfReportGenerator';
+import { ProgressReportData, downloadPdfReport, downloadEvidencePhotoPdf } from '../../utils/pdfReportGenerator';
 import { useLocationName } from '../../hooks/useLocationName';
 
 export interface ProjectDetailViewProps {
@@ -139,7 +145,32 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
 
   // Report Viewer Modal State
   const [selectedReportData, setSelectedReportData] = useState<ProgressReportData | null>(null);
+  const [selectedReportId, setSelectedReportId] = useState<number | null>(null);
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
+  const [downloadingEvidenceId, setDownloadingEvidenceId] = useState<number | null>(null);
+
+  const handleDownloadEvidencePdf = async (item: Evidence) => {
+    try {
+      setDownloadingEvidenceId(item.id);
+      await downloadEvidencePhotoPdf({
+        projectTitle: project?.title || 'Construction Site Evidence',
+        projectLocation: project?.location || 'Site Location',
+        milestoneLabel: item.milestone?.label || 'Milestone Evidence',
+        photoUrl: item.photoUrl,
+        description: item.description || 'Verified site progress evidence photo',
+        capturedAt: item.capturedAt,
+        gpsLatitude: item.gpsLatitude,
+        gpsLongitude: item.gpsLongitude,
+        gpsAvailable: item.gpsAvailable !== false,
+        engineerName: item.professional?.fullName || 'Verified Civil Engineer',
+      });
+    } catch (err: any) {
+      console.error('Failed to download PDF certificate:', err);
+      alert('Failed to generate PDF: ' + (err.message || 'Please try again'));
+    } finally {
+      setDownloadingEvidenceId(null);
+    }
+  };
 
   useEffect(() => {
     loadProjectData();
@@ -226,6 +257,7 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
     };
 
     setSelectedReportData(reportData);
+    setSelectedReportId(report.id);
     setIsReportModalOpen(true);
   };
 
@@ -611,16 +643,32 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
                       </div>
                     </div>
 
-                    <div className="flex items-center justify-between pt-1">
+                    <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-100">
                       <VerifiedBadge size="sm" showText={false} subtext={item.professional?.fullName || 'Verified Engineer'} />
-                      <a
-                        href={item.photoUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="text-xs font-extrabold text-orange-600 hover:text-orange-700 flex items-center gap-1"
-                      >
-                        <Download size={12} /> Full Res
-                      </a>
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => handleDownloadEvidencePdf(item)}
+                          disabled={downloadingEvidenceId === item.id}
+                          className="px-2.5 py-1 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-bold transition flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                          title="Download accredited A4 PDF certificate"
+                        >
+                          {downloadingEvidenceId === item.id ? (
+                            <Loader2 size={12} className="animate-spin" />
+                          ) : (
+                            <FileDown size={12} />
+                          )}
+                          <span>PDF Cert</span>
+                        </button>
+                        <a
+                          href={item.photoUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-xs font-bold text-slate-500 hover:text-slate-800 flex items-center gap-1 px-1.5 py-1"
+                        >
+                          <Download size={12} /> Original
+                        </a>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -772,24 +820,85 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
       {/* 6. DOCUMENTS TAB */}
       {activeSubTab === 'documents' && (
         <div className="bg-white rounded-3xl border border-gray-100 p-6 sm:p-8 shadow-sm space-y-4">
-          <h2 className="text-lg font-black text-gray-900">Supporting Project Documents</h2>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-gray-100">
+            <div>
+              <h2 className="text-lg font-black text-gray-900">Project Documents & Transmissions</h2>
+              <p className="text-xs text-gray-500">Official engineering drawings, permits, and inspection certificates</p>
+            </div>
+            <button
+              onClick={() => _onNavigateTab && _onNavigateTab('documents')}
+              className="px-4 py-2 bg-linear-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white font-bold text-xs rounded-xl shadow-xs transition flex items-center gap-1.5 self-start sm:self-auto cursor-pointer"
+            >
+              <Send size={14} /> Send / Manage Documents
+            </button>
+          </div>
+
           {documents.length === 0 ? (
-            <p className="text-gray-500 text-sm">No documents attached.</p>
+            <div className="p-12 text-center bg-gray-50 rounded-2xl border border-dashed border-gray-200">
+              <FileText className="w-10 h-10 text-gray-400 mx-auto mb-2" />
+              <p className="text-gray-500 text-sm font-bold">No documents attached to this project yet.</p>
+            </div>
           ) : (
-            <div className="space-y-2">
+            <div className="space-y-3">
               {documents.map((d) => (
-                <div key={d.id} className="p-4 rounded-2xl border border-gray-200 flex items-center justify-between">
-                  <div>
-                    <div className="text-sm font-bold text-gray-900">{d.fileName}</div>
-                    <div className="text-xs text-gray-500">{d.category} • {new Date(d.uploadedAt).toLocaleDateString()}</div>
+                <div
+                  key={d.id}
+                  className="p-4 rounded-2xl border border-gray-200 flex flex-col md:flex-row md:items-center justify-between gap-3 hover:bg-slate-50/70 transition"
+                >
+                  <div className="space-y-1 flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-sm font-black text-gray-900">{d.fileName}</span>
+                      <span className="px-2 py-0.5 rounded-md bg-gray-100 text-gray-700 font-bold text-[10px] uppercase">
+                        {d.category}
+                      </span>
+                      {d.targetRecipient === 'property_owner' && (
+                        <span className="px-2 py-0.5 rounded-md bg-amber-50 text-amber-800 border border-amber-200 font-bold text-[10px] flex items-center gap-1">
+                          <UserCheck size={11} className="text-amber-600" /> To: Project Owner
+                        </span>
+                      )}
+                      {d.targetRecipient === 'engineer' && (
+                        <span className="px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-800 border border-emerald-200 font-bold text-[10px] flex items-center gap-1">
+                          <ShieldCheck size={11} className="text-emerald-600" /> To: Civil Engineer
+                        </span>
+                      )}
+                      {d.targetRecipient === 'administrator' && (
+                        <span className="px-2 py-0.5 rounded-md bg-purple-50 text-purple-800 border border-purple-200 font-bold text-[10px] flex items-center gap-1">
+                          <ShieldCheck size={11} className="text-purple-600" /> To: Administrator
+                        </span>
+                      )}
+                      {d.targetRecipient === 'both' && (
+                        <span className="px-2 py-0.5 rounded-md bg-teal-50 text-teal-800 border border-teal-200 font-bold text-[10px] flex items-center gap-1">
+                          <Users size={11} className="text-teal-600" /> To: Both Parties
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="text-xs text-gray-500 flex flex-wrap items-center gap-2">
+                      <span>{new Date(d.uploadedAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</span>
+                      {d.uploadedBy?.fullName && (
+                        <>
+                          <span>•</span>
+                          <span>Uploaded by: <strong className="text-gray-700">{d.uploadedBy.fullName}</strong> ({d.uploadedBy.role === 'professional' ? 'Engineer' : d.uploadedBy.role === 'property_owner' ? 'Owner' : 'Admin'})</span>
+                        </>
+                      )}
+                    </div>
+
+                    {d.notes && (
+                      <div className="mt-1 p-2 bg-amber-50/60 border border-amber-100 rounded-xl text-xs text-amber-900 flex items-start gap-1.5">
+                        <MessageSquare size={13} className="text-amber-600 shrink-0 mt-0.5" />
+                        <span>{d.notes}</span>
+                      </div>
+                    )}
                   </div>
+
                   <a
                     href={d.fileUrl}
                     target="_blank"
                     rel="noreferrer"
-                    className="px-3 py-1.5 bg-slate-900 text-white text-xs font-bold rounded-lg"
+                    className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl transition flex items-center justify-center gap-1.5 self-start md:self-center shrink-0 cursor-pointer shadow-xs"
                   >
-                    Download
+                    <Download size={13} />
+                    <span>Download</span>
                   </a>
                 </div>
               ))}
@@ -803,6 +912,7 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
         isOpen={isReportModalOpen}
         onClose={() => setIsReportModalOpen(false)}
         reportData={selectedReportData}
+        reportId={selectedReportId}
       />
     </div>
   );

@@ -86,11 +86,15 @@ api.interceptors.response.use(
       error.config?.url?.includes('/login') ||
       error.config?.url?.includes('/signup');
 
-    // If unauthorized and not on login/signup, purge tokens and redirect
+    // If unauthorized and not on login/signup/public pages, purge tokens and let route guards handle
     if (status === 401 && !isAuthEndpoint) {
       clearAuthSession();
-      if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
-        window.location.href = '/login';
+      if (typeof window !== 'undefined') {
+        const publicPaths = ['/', '/landing', '/login', '/register'];
+        const isPublicPath = publicPaths.includes(window.location.pathname);
+        if (!isPublicPath && !window.location.pathname.startsWith('/login')) {
+          window.location.href = '/login';
+        }
       }
     }
 

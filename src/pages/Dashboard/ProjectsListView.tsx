@@ -1,19 +1,25 @@
 /**
  * CamTrust - Projects List View (Screen 7)
  * Real database-backed projects list with create, search, and filter.
+ * Project Owners can upload feasibility documents (Land Title, Site Plan, Permits) at creation.
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Plus,
   Search,
   MapPin,
   ArrowRight,
   X,
-  Loader2
+  Loader2,
+  FileText,
+  Paperclip,
+  FolderOpen,
+  Trash2,
 } from 'lucide-react';
 import projectService from '../../services/projectService';
 import { useCurrency } from '../../context/CurrencyContext';
+import useAuth from '../../hooks/useAuth';
 
 export interface ProjectsListViewProps {
   onSelectProject: (projectId: string) => void;
@@ -31,10 +37,22 @@ export interface Project {
   completionRate?: number;
 }
 
+const DOC_CATEGORIES = [
+  'Land Title / Deed',
+  'Site Survey Plan',
+  'Architectural Drawings',
+  'Building Permit',
+  'Environmental Permit',
+  'Feasibility Study',
+  'Other',
+];
+
 export const ProjectsListView: React.FC<ProjectsListViewProps> = ({
   onSelectProject,
   onNavigateTab,
 }) => {
+  const { user } = useAuth();
+  const isOwner = user?.role === 'property_owner';
   const { convert } = useCurrency();
   const [projects, setProjects] = useState<Project[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -44,6 +62,8 @@ export const ProjectsListView: React.FC<ProjectsListViewProps> = ({
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState('');
 
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   const [formData, setFormData] = useState({
     title: '',
     location: '',
@@ -52,6 +72,8 @@ export const ProjectsListView: React.FC<ProjectsListViewProps> = ({
     startDate: '',
     estimatedDuration: '',
   });
+
+  const [feasibilityFiles, setFeasibilityFiles] = useState<File[]>([]);
 
   useEffect(() => {
     loadProjects();
@@ -70,15 +92,34 @@ export const ProjectsListView: React.FC<ProjectsListViewProps> = ({
     }
   };
 
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    setFeasibilityFiles((prev) => {
+      const existing = new Set(prev.map((f) => f.name + f.size));
+      const newFiles = files.filter((f) => !existing.has(f.name + f.size));
+      return [...prev, ...newFiles];
+    });
+    // Reset input so same file can be re-added after removal
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const removeFile = (index: number) => {
+    setFeasibilityFiles((prev) => prev.filter((_, i) => i !== index));
+  };
+
   const handleCreateSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.title || !formData.location) return;
 
     try {
       setCreating(true);
-      await projectService.createProject(formData);
+      await projectService.createProject({
+        ...formData,
+        feasibilityDocs: feasibilityFiles,
+      });
       setIsModalOpen(false);
       setFormData({ title: '', location: '', description: '', budget: '', startDate: '', estimatedDuration: '' });
+      setFeasibilityFiles([]);
       await loadProjects();
     } catch (err: any) {
       alert(err.message || 'Failed to create project');
@@ -127,13 +168,15 @@ export const ProjectsListView: React.FC<ProjectsListViewProps> = ({
           </p>
         </div>
 
-        <button
-          onClick={() => setIsModalOpen(true)}
-          className="inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-orange-500 hover:bg-orange-600 text-white font-bold text-sm rounded-xl shadow-lg shadow-orange-500/25 transition"
-        >
-          <Plus size={18} />
-          <span>New Project</span>
-        </button>
+        {isOwner && (
+          <button
+            onClick={() => setIsModalOpen(true)}
+            className="inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-orange-500 hover:bg-orange-600 text-white font-bold text-sm rounded-xl shadow-lg shadow-orange-500/25 transition cursor-pointer"
+          >
+            <Plus size={18} />
+            <span>New Project</span>
+          </button>
+        )}
       </div>
 
       {error && (
@@ -161,7 +204,7 @@ export const ProjectsListView: React.FC<ProjectsListViewProps> = ({
             <button
               key={status}
               onClick={() => setFilterStatus(status)}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition ${
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition cursor-pointer ${
                 filterStatus === status
                   ? 'bg-gray-900 text-white shadow-sm'
                   : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'
@@ -176,7 +219,11 @@ export const ProjectsListView: React.FC<ProjectsListViewProps> = ({
       {/* Projects Grid */}
       {filteredProjects.length === 0 ? (
         <div className="bg-white p-12 rounded-2xl border border-gray-100 text-center">
-          <p className="text-gray-500 text-sm">No projects found. Create your first project to get started.</p>
+          <FolderOpen className="w-10 h-10 text-gray-300 mx-auto mb-3" />
+          <p className="text-gray-500 text-sm font-medium">No projects found.</p>
+          {isOwner && (
+            <p className="text-gray-400 text-xs mt-1">Create your first project to get started.</p>
+          )}
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
@@ -215,7 +262,7 @@ export const ProjectsListView: React.FC<ProjectsListViewProps> = ({
 
                   <button
                     onClick={(e) => { e.stopPropagation(); onNavigateTab('projects'); }}
-                    className="inline-flex items-center gap-1 text-xs font-bold text-orange-600 hover:text-orange-700 bg-orange-50 hover:bg-orange-100 px-3 py-1.5 rounded-lg transition"
+                    className="inline-flex items-center gap-1 text-xs font-bold text-orange-600 hover:text-orange-700 bg-orange-50 hover:bg-orange-100 px-3 py-1.5 rounded-lg transition cursor-pointer"
                   >
                     <span>View</span>
                     <ArrowRight size={13} />
@@ -230,17 +277,17 @@ export const ProjectsListView: React.FC<ProjectsListViewProps> = ({
       {/* Create Project Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-lg w-full p-6 sm:p-8 shadow-2xl border border-gray-100 animate-fadeIn relative">
+          <div className="bg-white rounded-3xl max-w-lg w-full p-6 sm:p-8 shadow-2xl border border-gray-100 animate-fadeIn relative max-h-[90vh] overflow-y-auto">
             <button
               onClick={() => setIsModalOpen(false)}
-              className="absolute top-5 right-5 p-1.5 rounded-xl text-gray-400 hover:text-gray-600 hover:bg-gray-100"
+              className="absolute top-5 right-5 p-1.5 rounded-xl text-gray-400 hover:text-gray-600 hover:bg-gray-100 cursor-pointer"
             >
               <X size={20} />
             </button>
 
             <h2 className="text-xl font-bold text-gray-900">Create New Project</h2>
             <p className="text-xs text-gray-500 mt-1">
-              Add a new construction site to monitor progress
+              Submit your construction project for admin review. Attach feasibility documents to speed up approval.
             </p>
 
             <form onSubmit={handleCreateSubmit} className="space-y-4 mt-5">
@@ -261,7 +308,7 @@ export const ProjectsListView: React.FC<ProjectsListViewProps> = ({
                 <input
                   type="text"
                   required
-                  placeholder="e.g. Nairobi, Kenya"
+                  placeholder="e.g. Yaoundé, Cameroon"
                   value={formData.location}
                   onChange={(e) => setFormData({ ...formData, location: e.target.value })}
                   className="w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500"
@@ -272,7 +319,7 @@ export const ProjectsListView: React.FC<ProjectsListViewProps> = ({
                 <label className="block text-xs font-semibold text-gray-700 mb-1">Description</label>
                 <textarea
                   rows={3}
-                  placeholder="Brief summary..."
+                  placeholder="Brief summary of the construction project..."
                   value={formData.description}
                   onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                   className="w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500"
@@ -284,7 +331,7 @@ export const ProjectsListView: React.FC<ProjectsListViewProps> = ({
                   <label className="block text-xs font-semibold text-gray-700 mb-1">Budget (FCFA)</label>
                   <input
                     type="text"
-                    placeholder="250000"
+                    placeholder="e.g. 25000000"
                     value={formData.budget}
                     onChange={(e) => setFormData({ ...formData, budget: e.target.value })}
                     className="w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500"
@@ -305,27 +352,86 @@ export const ProjectsListView: React.FC<ProjectsListViewProps> = ({
                 <label className="block text-xs font-semibold text-gray-700 mb-1">Estimated Duration</label>
                 <input
                   type="text"
-                  placeholder="e.g. 12 months"
+                  placeholder="e.g. 18 months"
                   value={formData.estimatedDuration}
                   onChange={(e) => setFormData({ ...formData, estimatedDuration: e.target.value })}
                   className="w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500"
                 />
               </div>
 
+              {/* ── Feasibility Documents Upload ── */}
+              <div className="bg-amber-50/80 border border-amber-200 rounded-2xl p-4 space-y-3">
+                <div className="flex items-center gap-2">
+                  <Paperclip size={16} className="text-amber-600" />
+                  <span className="text-xs font-black text-gray-900">
+                    Feasibility &amp; Land Ownership Documents
+                  </span>
+                  <span className="text-[10px] font-semibold text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">
+                    Recommended
+                  </span>
+                </div>
+                <p className="text-[11px] text-gray-600 leading-relaxed">
+                  Attach land title/deed, site survey plan, architectural drawings, building permits, or any ownership proof to help the administrator assess project feasibility faster.
+                </p>
+
+                {/* File list */}
+                {feasibilityFiles.length > 0 && (
+                  <div className="space-y-1.5">
+                    {feasibilityFiles.map((file, idx) => (
+                      <div key={idx} className="flex items-center justify-between bg-white border border-gray-200 rounded-xl px-3 py-2 gap-2">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <FileText size={14} className="text-orange-500 shrink-0" />
+                          <span className="text-xs font-semibold text-gray-800 truncate">
+                            {file.name}
+                          </span>
+                          <span className="text-[10px] text-gray-400 shrink-0">
+                            ({(file.size / 1024).toFixed(0)} KB)
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => removeFile(idx)}
+                          className="p-1 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition shrink-0 cursor-pointer"
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border-2 border-dashed border-amber-300 text-amber-700 hover:bg-amber-100/60 text-xs font-bold transition cursor-pointer w-full justify-center"
+                >
+                  <Plus size={15} />
+                  {feasibilityFiles.length === 0 ? 'Attach Documents (PDF, JPG, PNG)' : 'Add More Documents'}
+                </button>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  multiple
+                  accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+                  onChange={handleFileChange}
+                  className="hidden"
+                />
+              </div>
+
               <div className="flex items-center justify-end gap-3 pt-3">
                 <button
                   type="button"
-                  onClick={() => setIsModalOpen(false)}
-                  className="px-4 py-2.5 rounded-xl border border-gray-200 text-xs font-semibold text-gray-600 hover:bg-gray-50"
+                  onClick={() => { setIsModalOpen(false); setFeasibilityFiles([]); }}
+                  className="px-4 py-2.5 rounded-xl border border-gray-200 text-xs font-semibold text-gray-600 hover:bg-gray-50 cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={creating}
-                  className="px-5 py-2.5 rounded-xl bg-orange-500 hover:bg-orange-600 text-white text-xs font-bold shadow-md shadow-orange-500/25 disabled:opacity-50"
+                  className="px-5 py-2.5 rounded-xl bg-orange-500 hover:bg-orange-600 text-white text-xs font-bold shadow-md shadow-orange-500/25 disabled:opacity-50 cursor-pointer"
                 >
-                  {creating ? 'Creating...' : 'Create Project'}
+                  {creating ? 'Submitting...' : 'Submit Project'}
                 </button>
               </div>
             </form>

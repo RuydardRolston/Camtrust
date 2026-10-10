@@ -10,17 +10,11 @@ import { Landing } from '../pages/Landing/Landing';
 import Login from '../pages/Auth/Login';
 import Register from '../pages/Auth/Register';
 import Workspace from '../pages/Workspace';
-import useAuth from '../hooks/useAuth';
-
 export const AppRoutes: React.FC = () => {
-  const { isAuthenticated } = useAuth();
-
   return (
     <Routes>
-      {/* Root Path: Show Landing if unauthenticated, or Workspace if logged in */}
-      <Route path="/" element={isAuthenticated ? <Navigate to="/workspace" replace /> : <Landing />} />
-
       {/* Public Landing & Auth Pages */}
+      <Route path="/" element={<Landing />} />
       <Route path="/landing" element={<Landing />} />
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
